@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,15 +6,25 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EyeIcon, EyeOffIcon, Zap } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import { auth } from '@/services/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  updateProfile
+} from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
   
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !password) {
@@ -27,62 +36,95 @@ const Login = () => {
       return;
     }
     
-    setLoading(true);
-    
-    // Simulate login process
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      setLoading(true);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-      // In a real app, we'd validate credentials here
-      // For now, just redirect to dashboard
-      if (email.includes('@') && password.length >= 6) {
+      if (!user.emailVerified) {
         toast({
-          title: "Success",
-          description: "You have been logged in successfully",
-        });
-        window.location.href = '/';
-      } else {
-        toast({
-          title: "Error",
-          description: "Invalid email or password. Try using any email format and password with 6+ characters.",
+          title: "Email not verified",
+          description: "Please verify your email before logging in",
           variant: "destructive"
         });
+        return;
       }
-    }, 1500);
+      
+      toast({
+        title: "Success",
+        description: "You have been logged in successfully",
+      });
+      navigate('/');
+    } catch (error: any) {
+      let errorMessage = "An error occurred during login";
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        errorMessage = "Invalid email or password";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many failed attempts. Please try again later";
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!email || !password || !name) {
       toast({
         title: "Error",
-        description: "Please enter both email and password",
+        description: "Please fill in all fields",
         variant: "destructive"
       });
       return;
     }
     
-    setLoading(true);
-    
-    // Simulate signup process
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      setLoading(true);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-      if (email.includes('@') && password.length >= 6) {
-        toast({
-          title: "Account created",
-          description: "Your account has been created successfully",
-        });
-        window.location.href = '/';
-      } else {
-        toast({
-          title: "Error",
-          description: "Please use a valid email and a password with at least 6 characters",
-          variant: "destructive"
-        });
+      // Update profile with display name
+      await updateProfile(user, {
+        displayName: name
+      });
+      
+      // Send email verification
+      await sendEmailVerification(user);
+      
+      toast({
+        title: "Account created",
+        description: "Please check your email to verify your account",
+      });
+      
+      // Clear form
+      setEmail('');
+      setPassword('');
+      setName('');
+    } catch (error: any) {
+      let errorMessage = "An error occurred during signup";
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "Email is already in use";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password should be at least 6 characters";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Invalid email address";
       }
-    }, 1500);
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
   const togglePasswordVisibility = () => {
@@ -99,148 +141,125 @@ const Login = () => {
           </div>
         </div>
         
-        <Card>
-          <Tabs defaultValue="login">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Welcome</CardTitle>
-                <TabsList>
-                  <TabsTrigger value="login">Login</TabsTrigger>
-                  <TabsTrigger value="signup">Signup</TabsTrigger>
-                </TabsList>
-              </div>
-              <CardDescription>
-                Access your automation dashboard
-              </CardDescription>
-            </CardHeader>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin}>
-                <CardContent className="space-y-4">
+        <Tabs defaultValue="login" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="login">
+            <Card>
+              <CardHeader>
+                <CardTitle>Login</CardTitle>
+                <CardDescription>Enter your credentials to access your account</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      placeholder="name@example.com"
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
-                  
                   <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label htmlFor="password">Password</Label>
-                      <a 
-                        href="#" 
-                        className="text-xs text-primary hover:underline"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          toast({
-                            title: "Password Reset",
-                            description: "Password reset functionality would be implemented here.",
-                          });
-                        }}
-                      >
-                        Forgot password?
-                      </a>
-                    </div>
+                    <Label htmlFor="login-password">Password</Label>
                     <div className="relative">
-                      <Input 
-                        id="password" 
+                      <Input
+                        id="login-password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
+                        placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                       />
-                      <Button
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full"
                         onClick={togglePasswordVisibility}
+                        className="absolute right-2 top-2.5"
                       >
-                        {showPassword ? 
-                          <EyeOffIcon className="h-4 w-4" /> : 
-                          <EyeIcon className="h-4 w-4" />
-                        }
-                      </Button>
+                        {showPassword ? (
+                          <EyeOffIcon className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <EyeIcon className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
                     </div>
                   </div>
-                </CardContent>
-                
-                <CardFooter>
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={loading}
-                  >
+                  <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Logging in..." : "Login"}
                   </Button>
-                </CardFooter>
-              </form>
-            </TabsContent>
-            
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup}>
-                <CardContent className="space-y-4">
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="signup">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create Account</CardTitle>
+                <CardDescription>Enter your details to create a new account</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSignup} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      placeholder="Enter your full name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
-                    <Input 
-                      id="signup-email" 
-                      type="email" 
-                      placeholder="name@example.com"
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="Enter your email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
-                      <Input 
-                        id="signup-password" 
+                      <Input
+                        id="signup-password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="••••••••"
+                        placeholder="Enter your password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                       />
-                      <Button
+                      <button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full"
                         onClick={togglePasswordVisibility}
+                        className="absolute right-2 top-2.5"
                       >
-                        {showPassword ? 
-                          <EyeOffIcon className="h-4 w-4" /> : 
-                          <EyeIcon className="h-4 w-4" />
-                        }
-                      </Button>
+                        {showPassword ? (
+                          <EyeOffIcon className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <EyeIcon className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Password must be at least 6 characters long
-                    </p>
                   </div>
-                </CardContent>
-                
-                <CardFooter>
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={loading}
-                  >
-                    {loading ? "Creating account..." : "Create Account"}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Creating account..." : "Sign Up"}
                   </Button>
-                </CardFooter>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </Card>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

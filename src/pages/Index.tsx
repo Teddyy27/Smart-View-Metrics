@@ -5,7 +5,8 @@ import LineChart from '@/components/dashboard/LineChart';
 import BarChart from '@/components/dashboard/BarChart';
 import PieChart from '@/components/dashboard/PieChart';
 import DataTable from '@/components/dashboard/DataTable';
-import generateMockData, { type DashboardData } from '@/services/mergedMockDataWithRealtime';
+import generateMockData from '@/services/mergedMockDataWithRealtime';
+import type { DashboardData } from '@/services/mergedMockDataWithRealtime';
 import { Bolt, Coins, Gauge, Zap } from 'lucide-react';
 
 const Dashboard = () => {

@@ -32,11 +32,14 @@ interface ChartDataPoint {
   consumption: number;
   prediction: number;
   benchmark: number;
+  [key: string]: string | number;
 }
 
 interface UsageDataPoint {
   name: string;
   value: number;
+  color: string;
+  [key: string]: string | number;
 }
 
 interface RevenueDataPoint {
@@ -44,6 +47,7 @@ interface RevenueDataPoint {
   revenue: number;
   expenses: number;
   profit: number;
+  [key: string]: string | number;
 }
 
 interface AlertRecord {
@@ -56,7 +60,7 @@ interface AlertRecord {
   status: 'Active' | 'Resolved';
 }
 
-interface DashboardData {
+export interface DashboardData {
   stats: DashboardStats;
   energyData: ChartDataPoint[];
   usageData: UsageDataPoint[];
@@ -87,10 +91,10 @@ export const generateMockData = (): DashboardData => {
   // Generate usage distribution data
   const generateUsageData = (): UsageDataPoint[] => {
     return [
-      { name: 'HVAC', value: 40 },
-      { name: 'Lighting', value: 20 },
-      { name: 'Equipment', value: 25 },
-      { name: 'Other', value: 15 }
+      { name: 'HVAC', value: 40, color: '#3b82f6' },
+      { name: 'Lighting', value: 20, color: '#8b5cf6' },
+      { name: 'Equipment', value: 25, color: '#10b981' },
+      { name: 'Other', value: 15, color: '#ef4444' }
     ];
   };
 
