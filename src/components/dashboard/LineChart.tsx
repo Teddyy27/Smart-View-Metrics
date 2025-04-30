@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import {
   LineChart as RechartsLineChart,
@@ -63,7 +62,7 @@ const LineChart: React.FC<LineChartProps> = ({
   }, [activeRange, data]);
 
   return (
-    <div className="chart-container">
+    <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
       <div className="flex justify-between items-center mb-4">
         <h3 className="font-medium text-lg">{title}</h3>
         <div className="flex space-x-2">

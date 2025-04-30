@@ -2,11 +2,9 @@ import React, { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import LineChart from '@/components/dashboard/LineChart';
-import BarChart from '@/components/dashboard/BarChart';
 import PieChart from '@/components/dashboard/PieChart';
 import DataTable from '@/components/dashboard/DataTable';
-import generateMockData from '@/services/mergedMockDataWithRealtime';
-import type { DashboardData } from '@/services/mergedMockDataWithRealtime';
+import generateMockData, { type DashboardData } from '@/services/mergedMockDataWithRealtime';
 import { Bolt, Coins, Gauge, Zap } from 'lucide-react';
 
 const Dashboard = () => {
@@ -147,7 +145,7 @@ const Dashboard = () => {
           />
         </div>
         
-        {/* Charts */}
+        {/* Charts and Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
             <LineChart 
@@ -168,29 +166,16 @@ const Dashboard = () => {
           </div>
         </div>
         
-        {/* Revenue and Alerts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2">
-            <BarChart
-              title="Revenue Analysis"
-              data={data.revenueData}
-              bars={[
-                { key: 'revenue', color: '#3b82f6', name: 'Revenue' },
-                { key: 'expenses', color: '#ef4444', name: 'Expenses' },
-                { key: 'profit', color: '#10b981', name: 'Profit' }
-              ]}
-            />
-          </div>
-          <div className="h-full">
-            <DataTable
-              title="Recent Alerts"
-              columns={alertColumns}
-              data={data.alertsData}
-              onRowClick={(record) => {
-                console.log('Alert clicked:', record);
-              }}
-            />
-          </div>
+        {/* Recent Alerts */}
+        <div className="mb-6">
+          <DataTable
+            title="Recent Alerts"
+            columns={alertColumns}
+            data={data.alertsData}
+            onRowClick={(record) => {
+              console.log('Alert clicked:', record);
+            }}
+          />
         </div>
       </div>
     </Layout>

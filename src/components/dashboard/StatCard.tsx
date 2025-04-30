@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,11 +20,11 @@ const StatCard: React.FC<StatCardProps> = ({
   const isPositive = change && change > 0;
   
   return (
-    <div className={cn("stats-card", className)}>
+    <div className={cn("p-4 rounded-lg border bg-card text-card-foreground shadow-sm", className)}>
       <div className="flex justify-between items-start">
         <div>
-          <p className="stats-label">{title}</p>
-          <p className="stats-value">{value}</p>
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="text-2xl font-bold mt-1">{value}</p>
         </div>
         {icon && (
           <div className="p-2 rounded-full bg-primary/10 text-primary">

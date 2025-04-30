@@ -43,19 +43,19 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
   return (
     <aside 
       className={cn(
-        "h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col",
+        "h-screen bg-background border-r transition-all duration-300 flex flex-col",
         collapsed ? "w-16" : "w-64"
       )}
     >
-      <div className="flex items-center p-4 h-16 border-b border-sidebar-border">
+      <div className="flex items-center p-4 h-16 border-b">
         {!collapsed && (
-          <div className="font-bold text-xl text-sidebar-foreground flex items-center">
-            <Zap className="mr-2 h-6 w-6 text-dashboard-purple" />
+          <div className="font-bold text-xl text-foreground flex items-center">
+            <Zap className="mr-2 h-6 w-6 text-primary" />
             <span>SmartView</span>
           </div>
         )}
         {collapsed && (
-          <Zap className="h-6 w-6 text-dashboard-purple mx-auto" />
+          <Zap className="h-6 w-6 text-primary mx-auto" />
         )}
       </div>
 
@@ -70,8 +70,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
                   className={cn(
                     "flex items-center px-3 py-2 rounded-md text-sm transition-colors",
                     isActive 
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium" 
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                      ? "bg-primary/10 text-primary font-medium" 
+                      : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
                     collapsed && "justify-center"
                   )}
                 >
@@ -84,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-sidebar-border">
+      <div className="p-4 border-t">
         <Button 
           variant="outline" 
           size="sm" 

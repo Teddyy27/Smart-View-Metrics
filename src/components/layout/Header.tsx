@@ -28,7 +28,7 @@ const Header: React.FC<HeaderProps> = ({
   toggleTheme,
   isDarkTheme 
 }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -87,34 +87,40 @@ const Header: React.FC<HeaderProps> = ({
         
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-dashboard-red rounded-full"></span>
+          <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
         </Button>
         
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user.photoURL || ''} />
-                  <AvatarFallback>{getInitials(user.displayName || user.email?.split('@')[0] || 'U')}</AvatarFallback>
-                </Avatar>
-                <span className="font-medium text-sm hidden md:inline-block">
-                  {user.displayName || user.email?.split('@')[0]}
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/user')}>Profile</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/user')}>Settings</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {!loading && (
+          user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.photoURL || ''} />
+                    <AvatarFallback>{getInitials(user.displayName || user.email?.split('@')[0] || 'U')}</AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium text-sm hidden md:inline-block">
+                    {user.displayName || user.email?.split('@')[0]}
+                  </span>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/user')}>Profile</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/user')}>Settings</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="ghost" onClick={() => navigate('/login')}>
+              Login
+            </Button>
+          )
         )}
       </div>
     </header>
