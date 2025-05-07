@@ -36,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
     { name: 'Users', icon: Users, path: '/users' },
     { name: 'Reports', icon: FileText, path: '/reports' },
     { name: 'Automation', icon: Zap, path: '/automation' },
-    { name: 'Data Sources', icon: Database, path: '/data-sources' },
+    // { name: 'Data Sources', icon: Database, path: '/data-sources' },
     { name: 'Settings', icon: Settings, path: '/settings' },
   ];
 
@@ -58,6 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
           <Zap className="h-6 w-6 text-primary mx-auto" />
         )}
       </div>
+
 
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
@@ -84,7 +85,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
         </ul>
       </nav>
 
-      <div className="p-4 border-t">
+      {/* <div className="p-4 border-t">
         <Button 
           variant="outline" 
           size="sm" 
@@ -94,7 +95,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
           <LogOut className="h-4 w-4" />
           {!collapsed && <span>Logout</span>}
         </Button>
-      </div>
+      </div> */}
     </aside>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -11,14 +10,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   
-  // Check for user preference on initial load
+  // Set light theme as default on initial load
   useEffect(() => {
-    const isDark = localStorage.getItem('darkMode') === 'true' || 
-      window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    setIsDarkTheme(isDark);
-    if (isDark) {
+    const savedTheme = localStorage.getItem('darkMode');
+    // Only apply dark theme if explicitly set to true
+    if (savedTheme === 'true') {
+      setIsDarkTheme(true);
       document.documentElement.classList.add('dark');
+    } else {
+      // Ensure light theme by default
+      setIsDarkTheme(false);
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('darkMode', 'false');
     }
   }, []);
   
