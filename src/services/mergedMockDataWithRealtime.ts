@@ -167,4 +167,101 @@ export const generateMockData = (): DashboardData => {
   };
 };
 
-export default generateMockData; 
+export default generateMockData;
+
+// --- Real-time Firebase hook for dashboard data ---
+import { db } from './firebase';
+import { ref, onValue, off } from 'firebase/database';
+import { useEffect, useState } from 'react';
+
+export function useDashboardData(): { data: DashboardData | null, loading: boolean } {
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const rootRef = ref(db, '/');
+    const unsubscribe = onValue(rootRef, (snapshot) => {
+      const val = snapshot.val();
+      if (!val) {
+        setData(null);
+        setLoading(false);
+        return;
+      }
+      // Energy data: merge timestamps from all three logs
+      const acLogs = val.ac_power_logs || {};
+      const fanLogs = val.power_logs || {};
+      const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
+      // Collect all unique timestamps
+      const allTimestamps = Array.from(new Set([
+        ...Object.keys(acLogs),
+        ...Object.keys(fanLogs),
+        ...Object.keys(lightLogs)
+      ])).sort();
+      const energyData = allTimestamps.map((ts) => ({
+        name: ts,
+        acPower: typeof acLogs[ts] === 'number' ? acLogs[ts] : 0,
+        fanPower: fanLogs[ts] ? Number(fanLogs[ts]) : 0,
+        lightPower: typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0,
+        consumption: 0, // required by ChartDataPoint, not used
+        prediction: 0,  // required by ChartDataPoint, not used
+        benchmark: 0    // required by ChartDataPoint, not used
+      }));
+      // Usage data (AC and Lighting)
+      const usageData = [
+        { name: 'AC', value: acLogs ? Number(Object.values(acLogs).reduce((a: any, b: any) => a + b, 0)) : 0, color: '#3b82f6' },
+        { name: 'Lighting', value: lightLogs ? Number(Object.values(lightLogs).reduce((a: any, b: any) => a + b, 0)) : 0, color: '#8b5cf6' },
+        { name: 'Other', value: 0, color: '#ef4444' }
+      ];
+      // Revenue data (mock for now)
+      const revenueData = [
+        { name: 'May', revenue: 0, expenses: 0, profit: 0 }
+      ];
+      // Alerts data
+      const alertsData = [];
+      if (val.fan_state === false) {
+        alertsData.push({
+          id: 1,
+          type: 'Warning',
+          system: 'AC',
+          location: 'Unknown',
+          message: 'Fan is off',
+          timestamp: new Date().toISOString(),
+          status: 'Active'
+        });
+      }
+      if (val.motion_detected === false) {
+        alertsData.push({
+          id: 2,
+          type: 'Info',
+          system: 'Lighting',
+          location: 'Unknown',
+          message: 'No motion detected',
+          timestamp: new Date().toISOString(),
+          status: 'Active'
+        });
+      }
+      setData({ stats: {
+        energyUsage: {
+          value: acLogs ? `${Object.values(acLogs).slice(-1)[0]} W` : 'N/A',
+          change: 0
+        },
+        savings: {
+          value: '$0',
+          change: 0
+        },
+        efficiency: {
+          value: lightLogs ? `${Object.values(lightLogs).slice(-1)[0]} W` : 'N/A',
+          change: 0
+        },
+        automationStatus: {
+          value: val.manual_fan_control === false ? 'Auto' : 'Manual',
+          change: 0
+        }
+      }, energyData, usageData, revenueData, alertsData });
+      setLoading(false);
+    });
+    return () => off(rootRef, 'value', unsubscribe);
+  }, []);
+
+  return { data, loading };
+} 

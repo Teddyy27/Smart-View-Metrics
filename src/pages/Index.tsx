@@ -1,25 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import LineChart from '@/components/dashboard/LineChart';
 import PieChart from '@/components/dashboard/PieChart';
 import DataTable from '@/components/dashboard/DataTable';
-import generateMockData, { type DashboardData } from '@/services/mergedMockDataWithRealtime';
+import { useDashboardData } from '@/services/mergedMockDataWithRealtime';
 import { Bolt, Coins, Gauge, Zap } from 'lucide-react';
 
 const Dashboard = () => {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    // Simulate data loading
-    setLoading(true);
-    setTimeout(() => {
-      const mockData = generateMockData();
-      setData(mockData);
-      setLoading(false);
-    }, 1000);
-  }, []);
+  const { data, loading } = useDashboardData();
   
   // Format timestamp for alerts table
   const formatTimestamp = (timestamp: string) => {

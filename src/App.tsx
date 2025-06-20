@@ -10,6 +10,7 @@ import Automation from "./pages/Automation";
 import User from "./pages/User";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+import Analytics from "./pages/Analytics";
 import { AuthProvider } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/user" element={<User />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
