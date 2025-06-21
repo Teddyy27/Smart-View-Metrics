@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '@/services/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
+import { trackUserLogin, trackUserLogout } from '@/services/userActivityService';
 
 interface AuthContextType {
   user: User | null;
@@ -16,13 +17,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      try {
+        if (user) {
+          // Track login (but don't block UI if it fails)
+          try {
+            await trackUserLogin(user);
+          } catch (error) {
+            console.error('Error tracking login:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error in auth state change:', error);
+      } finally {
+        setUser(user);
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Track logout when component unmounts or user changes
+  useEffect(() => {
+    return () => {
+      if (user) {
+        try {
+          trackUserLogout(user);
+        } catch (error) {
+          console.error('Error tracking logout:', error);
+        }
+      }
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading }}>

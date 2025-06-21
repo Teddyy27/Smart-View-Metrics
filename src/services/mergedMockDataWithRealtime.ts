@@ -182,6 +182,12 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
     const rootRef = ref(db, '/');
     const unsubscribe = onValue(rootRef, (snapshot) => {
       const val = snapshot.val();
+      // Debug logs
+      console.log('Firebase Data:', val);
+      console.log('AC Logs:', val?.ac_power_logs);
+      console.log('Fan Logs:', val?.power_logs);
+      console.log('Light Logs:', val?.lights?.power_logs);
+      
       if (!val) {
         setData(null);
         setLoading(false);
@@ -197,15 +203,45 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
         ...Object.keys(fanLogs),
         ...Object.keys(lightLogs)
       ])).sort();
-      const energyData = allTimestamps.map((ts) => ({
-        name: ts,
-        acPower: typeof acLogs[ts] === 'number' ? acLogs[ts] : 0,
-        fanPower: fanLogs[ts] ? Number(fanLogs[ts]) : 0,
-        lightPower: typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0,
-        consumption: 0, // required by ChartDataPoint, not used
-        prediction: 0,  // required by ChartDataPoint, not used
-        benchmark: 0    // required by ChartDataPoint, not used
-      }));
+      console.log('All Timestamps:', allTimestamps);
+      
+      const energyData = allTimestamps.map((ts) => {
+        const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;
+        const fanPower = fanLogs[ts] ? Number(fanLogs[ts]) : 0;
+        const lightPower = typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0;
+        const totalPower = acPower + fanPower + lightPower;
+        
+        return {
+          name: ts,
+          acPower,
+          fanPower,
+          lightPower,
+          totalPower,
+          acBenchmark: 2500, // 2.5kW typical AC usage
+          fanBenchmark: 500,  // 0.5kW typical fan usage
+          lightBenchmark: 300, // 0.3kW typical lighting usage
+          consumption: 0, // required by ChartDataPoint, not used
+          prediction: 0,  // required by ChartDataPoint, not used
+          benchmark: 0    // required by ChartDataPoint, not used
+        };
+      });
+      console.log('Energy Data for Chart:', energyData);
+      console.log('Sample Energy Data Point:', energyData[0]);
+      
+      // Calculate today's peak usage
+      const today = new Date();
+      const todayPeak = Math.max(...energyData
+        .filter(item => {
+          try {
+            const itemDate = new Date(item.name.split('_')[0]); // Extract date from timestamp
+            return itemDate.toDateString() === today.toDateString();
+          } catch {
+            return false; // Skip items with invalid date format
+          }
+        })
+        .map(item => item.totalPower)
+      );
+      
       // Usage data (AC and Lighting)
       const usageData = [
         { name: 'AC', value: acLogs ? Number(Object.values(acLogs).reduce((a: any, b: any) => a + b, 0)) : 0, color: '#3b82f6' },
@@ -242,7 +278,7 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
       }
       setData({ stats: {
         energyUsage: {
-          value: acLogs ? `${Object.values(acLogs).slice(-1)[0]} W` : 'N/A',
+          value: energyData.length > 0 ? `${energyData[energyData.length - 1].totalPower} W` : 'N/A',
           change: 0
         },
         savings: {
@@ -250,7 +286,7 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
           change: 0
         },
         efficiency: {
-          value: lightLogs ? `${Object.values(lightLogs).slice(-1)[0]} W` : 'N/A',
+          value: todayPeak > 0 ? `${(todayPeak / 1000).toFixed(1)} kW` : 'N/A',
           change: 0
         },
         automationStatus: {

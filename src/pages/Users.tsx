@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,67 +15,18 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  photoUrl?: string;
-  lastActive: Date;
-  dashboards: string[];
-}
+import { useUserData } from '@/hooks/useUserData';
 
 const UsersPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { data, loading, trackPageAccess } = useUserData();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Mock data for family and friends using the dashboard
-  const [users] = useState<User[]>([
-    {
-      id: '1',
-      name: 'John Smith',
-      email: 'john@example.com',
-      role: 'Administrator',
-      lastActive: new Date(),
-      dashboards: ['Energy Management', 'Security Systems', 'Building Automation']
-    },
-    {
-      id: '2',
-      name: 'Emily Johnson',
-      email: 'emily@example.com',
-      role: 'Editor',
-      photoUrl: 'https://i.pravatar.cc/150?u=emily',
-      lastActive: new Date(Date.now() - 3600000),
-      dashboards: ['Energy Management', 'Building Automation']
-    },
-    {
-      id: '3',
-      name: 'Michael Brown',
-      email: 'michael@example.com',
-      role: 'Viewer',
-      lastActive: new Date(Date.now() - 86400000),
-      dashboards: ['Energy Management']
-    },
-    {
-      id: '4',
-      name: 'Sarah Wilson',
-      email: 'sarah@example.com',
-      role: 'Editor',
-      photoUrl: 'https://i.pravatar.cc/150?u=sarah',
-      lastActive: new Date(Date.now() - 172800000),
-      dashboards: ['Building Automation', 'Security Systems']
-    },
-    {
-      id: '5',
-      name: 'David Martinez',
-      email: 'david@example.com',
-      role: 'Viewer',
-      lastActive: new Date(Date.now() - 259200000),
-      dashboards: ['Energy Management']
-    }
-  ]);
+  // Track page access when component mounts
+  useEffect(() => {
+    trackPageAccess('Users Management');
+  }, [trackPageAccess]);
 
   const getInitials = (name: string) => {
     return name
@@ -86,11 +36,11 @@ const UsersPage = () => {
       .toUpperCase();
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (timestamp: number) => {
     return new Intl.DateTimeFormat('en-US', {
       dateStyle: 'medium',
       timeStyle: 'short'
-    }).format(date);
+    }).format(new Date(timestamp));
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -106,10 +56,24 @@ const UsersPage = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredUsers = data.allUsers.filter(dashboardUser => 
+    dashboardUser.userName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    dashboardUser.userEmail.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto p-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-xl font-medium animate-pulse-gentle">
+              Loading users data...
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -121,7 +85,7 @@ const UsersPage = () => {
               Dashboard Users
             </h1>
             <p className="text-muted-foreground">
-              Family and friends with access to the dashboard
+              Users who have accessed the smart home dashboard
             </p>
           </div>
           
@@ -156,32 +120,35 @@ const UsersPage = () => {
               {filteredUsers.length === 0 ? (
                 <p className="text-center py-4 text-muted-foreground">No users found</p>
               ) : (
-                filteredUsers.map((user) => (
-                  <div key={user.id} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">
+                filteredUsers.map((dashboardUser) => (
+                  <div key={dashboardUser.userId} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
-                        <AvatarImage src={user.photoUrl} />
-                        <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                        <AvatarFallback>{getInitials(dashboardUser.userName)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <h3 className="font-medium">{user.name}</h3>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <h3 className="font-medium">{dashboardUser.userName}</h3>
+                        <p className="text-sm text-muted-foreground">{dashboardUser.userEmail}</p>
                         <div className="flex gap-2 mt-1">
-                          <Badge className={getRoleBadgeColor(user.role)}>
-                            {user.role}
+                          <Badge className="bg-blue-500">
+                            User
                           </Badge>
                           <Badge variant="outline" className="flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
-                            {formatDate(user.lastActive)}
+                            {formatDate(dashboardUser.lastActivity)}
                           </Badge>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col md:flex-row md:items-center gap-4">
                       <div className="text-sm">
                         <span className="text-muted-foreground font-medium">Dashboards: </span>
-                        <span>{user.dashboards.join(', ')}</span>
+                        <span>{dashboardUser.dashboards.join(', ')}</span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-muted-foreground font-medium">Logins: </span>
+                        <span>{dashboardUser.totalLogins}</span>
                       </div>
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline">Edit</Button>
@@ -200,33 +167,24 @@ const UsersPage = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="w-5 h-5" />
-                User Activity
+                Recent User Activity
               </CardTitle>
-              <CardDescription>Recent dashboard interactions</CardDescription>
+              <CardDescription>Latest dashboard interactions</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <div className="flex items-start justify-between p-3 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">Emily Johnson</h3>
-                    <p className="text-sm text-muted-foreground">Adjusted thermostat settings</p>
+                {data.activities.slice(0, 5).map((activity) => (
+                  <div key={activity.id} className="flex items-start justify-between p-3 border rounded-lg">
+                    <div>
+                      <h3 className="font-medium">{activity.userName}</h3>
+                      <p className="text-sm text-muted-foreground">{activity.action}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{formatDate(activity.timestamp)}</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">{formatDate(new Date(Date.now() - 1800000))}</p>
-                </div>
-                <div className="flex items-start justify-between p-3 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">John Smith</h3>
-                    <p className="text-sm text-muted-foreground">Viewed energy dashboard</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{formatDate(new Date(Date.now() - 3600000))}</p>
-                </div>
-                <div className="flex items-start justify-between p-3 border rounded-lg">
-                  <div>
-                    <h3 className="font-medium">Sarah Wilson</h3>
-                    <p className="text-sm text-muted-foreground">Generated energy report</p>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{formatDate(new Date(Date.now() - 5400000))}</p>
-                </div>
+                ))}
+                {data.activities.length === 0 && (
+                  <p className="text-center py-4 text-muted-foreground">No recent activity</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -243,24 +201,24 @@ const UsersPage = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <h3 className="font-medium">Energy Management</h3>
-                    <p className="text-sm text-muted-foreground">Power usage and optimization</p>
+                    <h3 className="font-medium">Dashboard</h3>
+                    <p className="text-sm text-muted-foreground">Main dashboard access</p>
                   </div>
-                  <Badge>4 Users</Badge>
+                  <Badge>{data.allUsers.filter(u => u.dashboards.includes('Dashboard')).length} Users</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <h3 className="font-medium">Security Systems</h3>
-                    <p className="text-sm text-muted-foreground">Cameras and sensors</p>
+                    <h3 className="font-medium">Analytics</h3>
+                    <p className="text-sm text-muted-foreground">Analytics and reports</p>
                   </div>
-                  <Badge>2 Users</Badge>
+                  <Badge>{data.allUsers.filter(u => u.dashboards.includes('Analytics')).length} Users</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <h3 className="font-medium">Building Automation</h3>
-                    <p className="text-sm text-muted-foreground">Smart controls and schedules</p>
+                    <h3 className="font-medium">User Profile</h3>
+                    <p className="text-sm text-muted-foreground">User management</p>
                   </div>
-                  <Badge>3 Users</Badge>
+                  <Badge>{data.allUsers.filter(u => u.dashboards.includes('User Profile')).length} Users</Badge>
                 </div>
               </div>
             </CardContent>

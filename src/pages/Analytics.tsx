@@ -1,12 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import DataTable from '@/components/dashboard/DataTable';
 import { useDashboardData } from '@/services/mergedMockDataWithRealtime';
+import { useUserData } from '@/hooks/useUserData';
 import { Bolt, Zap, Gauge } from 'lucide-react';
 
 const Analytics = () => {
   const { data, loading } = useDashboardData();
+  const { trackPageAccess } = useUserData();
+
+  // Track page access when component mounts
+  useEffect(() => {
+    trackPageAccess('Analytics');
+  }, [trackPageAccess]);
 
   // Helper to format power in kW
   const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');

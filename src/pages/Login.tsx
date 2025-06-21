@@ -14,6 +14,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
+import { trackUserLogin, trackUserActivity } from '@/services/userActivityService';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -48,6 +49,14 @@ const Login = () => {
           variant: "destructive"
         });
         return;
+      }
+      
+      // Track successful login (but don't block UI if it fails)
+      try {
+        await trackUserLogin(user);
+        await trackUserActivity(user, 'Successful Login', 'Login Page', 'User successfully logged into the system');
+      } catch (error) {
+        console.error('Error tracking login:', error);
       }
       
       toast({
@@ -97,6 +106,14 @@ const Login = () => {
       
       // Send email verification
       await sendEmailVerification(user);
+      
+      // Track successful signup (but don't block UI if it fails)
+      try {
+        await trackUserLogin(user);
+        await trackUserActivity(user, 'Account Created', 'Signup Page', 'New user account created successfully');
+      } catch (error) {
+        console.error('Error tracking signup:', error);
+      }
       
       toast({
         title: "Account created",

@@ -16,6 +16,7 @@ import { auth } from '@/services/firebase';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
+import { trackUserLogout, trackUserActivity } from '@/services/userActivityService';
 
 interface HeaderProps {
   toggleSidebar: () => void;
@@ -36,6 +37,12 @@ const Header: React.FC<HeaderProps> = ({
 
   const handleLogout = async () => {
     try {
+      if (user) {
+        // Track logout event before signing out
+        await trackUserLogout(user);
+        await trackUserActivity(user, 'User Logout', 'Header', 'User logged out via header menu');
+      }
+      
       await signOut(auth);
       navigate('/login');
     } catch (error: any) {
