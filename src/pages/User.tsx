@@ -326,56 +326,6 @@ const UserPage = () => {
             </CardContent>
           </Card>
         </div>
-
-        {/* All Dashboard Users */}
-        <div className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                All Dashboard Users
-              </CardTitle>
-              <CardDescription>Users who have accessed the dashboard</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {!data.allUsers || data.allUsers.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No other users found</p>
-                    <p className="text-sm text-muted-foreground">You're the first user of this dashboard</p>
-                  </div>
-                ) : (
-                  data.allUsers.map((dashboardUser) => (
-                    <div key={dashboardUser.userId} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>
-                            {getInitials(dashboardUser.userName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <h3 className="font-medium">{dashboardUser.userName}</h3>
-                          <p className="text-sm text-muted-foreground">{dashboardUser.userEmail}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Dashboards: {dashboardUser.dashboards.join(', ')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{dashboardUser.totalLogins}</p>
-                        <p className="text-xs text-muted-foreground">logins</p>
-                        <p className="text-xs text-muted-foreground">
-                          Last: {formatDate(dashboardUser.lastActivity)}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </Layout>
   );
