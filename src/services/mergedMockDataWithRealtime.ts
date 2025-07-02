@@ -173,6 +173,7 @@ export default generateMockData;
 import { db } from './firebase';
 import { ref, onValue, off } from 'firebase/database';
 import { useEffect, useState } from 'react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 export function useDashboardData(): { data: DashboardData | null, loading: boolean } {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -181,22 +182,14 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
   useEffect(() => {
     const rootRef = ref(db, '/');
     const unsubscribe = onValue(rootRef, (snapshot) => {
-      const val = snapshot.val();
-      // Debug logs
-      console.log('Firebase Data:', val);
-      console.log('AC Logs:', val?.ac_power_logs);
-      console.log('Fan Logs:', val?.power_logs);
-      console.log('Light Logs:', val?.lights?.power_logs);
-      
-      if (!val) {
-        setData(null);
-        setLoading(false);
-        return;
-      }
-      // Energy data: merge timestamps from all three logs
+      const val = snapshot.val() || {};
+      console.log('RAW val:', val);
       const acLogs = val.ac_power_logs || {};
       const fanLogs = val.power_logs || {};
       const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
+      console.log('acLogs:', acLogs);
+      console.log('fanLogs:', fanLogs);
+      console.log('lightLogs:', lightLogs);
       // Collect all unique timestamps
       const allTimestamps = Array.from(new Set([
         ...Object.keys(acLogs),
@@ -300,4 +293,130 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
   }, []);
 
   return { data, loading };
+}
+
+/**
+ * React Query-powered real-time dashboard data hook
+ */
+export function useRealtimeDashboardData() {
+  const queryClient = useQueryClient();
+
+  // Set up the Firebase subscription for real-time updates
+  useEffect(() => {
+    const rootRef = ref(db, '/');
+    const unsubscribe = onValue(rootRef, (snapshot) => {
+      const val = snapshot.val() || {};
+      console.log('RAW val:', val);
+      const acLogs = val.ac_power_logs || {};
+      const fanLogs = val.power_logs || {};
+      const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
+      console.log('acLogs:', acLogs);
+      console.log('fanLogs:', fanLogs);
+      console.log('lightLogs:', lightLogs);
+      const allTimestamps = Array.from(new Set([
+        ...Object.keys(acLogs),
+        ...Object.keys(fanLogs),
+        ...Object.keys(lightLogs)
+      ])).sort();
+      const energyData = allTimestamps.map((ts) => {
+        const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;
+        const fanPower = fanLogs[ts] ? Number(fanLogs[ts]) : 0;
+        const lightPower = typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0;
+        const totalPower = acPower + fanPower + lightPower;
+        return {
+          name: ts,
+          acPower,
+          fanPower,
+          lightPower,
+          totalPower,
+          acBenchmark: 2500,
+          fanBenchmark: 500,
+          lightBenchmark: 300,
+          consumption: 0,
+          prediction: 0,
+          benchmark: 0
+        };
+      });
+      const today = new Date();
+      const todayPeak = Math.max(...energyData
+        .filter(item => {
+          try {
+            const itemDate = new Date(item.name.split('_')[0]);
+            return itemDate.toDateString() === today.toDateString();
+          } catch {
+            return false;
+          }
+        })
+        .map(item => item.totalPower)
+      );
+      const usageData = [
+        { name: 'AC', value: acLogs ? Number(Object.values(acLogs).reduce((a, b) => Number(a) + Number(b), 0)) : 0, color: '#3b82f6' },
+        { name: 'Lighting', value: lightLogs ? Number(Object.values(lightLogs).reduce((a, b) => Number(a) + Number(b), 0)) : 0, color: '#8b5cf6' },
+        { name: 'Other', value: 0, color: '#ef4444' }
+      ];
+      const revenueData = [
+        { name: 'May', revenue: 0, expenses: 0, profit: 0 }
+      ];
+      const alertsData = [];
+      if (val.fan_state === false) {
+        alertsData.push({
+          id: 1,
+          type: 'Warning',
+          system: 'AC',
+          location: 'Unknown',
+          message: 'Fan is off',
+          timestamp: new Date().toISOString(),
+          status: 'Active'
+        });
+      }
+      if (val.motion_detected === false) {
+        alertsData.push({
+          id: 2,
+          type: 'Info',
+          system: 'Lighting',
+          location: 'Unknown',
+          message: 'No motion detected',
+          timestamp: new Date().toISOString(),
+          status: 'Active'
+        });
+      }
+      const dashboardData = {
+        stats: {
+          energyUsage: {
+            value: energyData.length > 0 ? `${energyData[energyData.length - 1].totalPower} W` : 'N/A',
+            change: 0
+          },
+          savings: {
+            value: '$0',
+            change: 0
+          },
+          efficiency: {
+            value: todayPeak > 0 ? `${(todayPeak / 1000).toFixed(1)} kW` : 'N/A',
+            change: 0
+          },
+          automationStatus: {
+            value: val.manual_fan_control === false ? 'Auto' : 'Manual',
+            change: 0
+          }
+        },
+        energyData,
+        usageData,
+        revenueData,
+        alertsData
+      };
+      queryClient.setQueryData(['dashboardData'], dashboardData);
+    });
+    // Clean up listener on unmount
+    return () => off(rootRef, 'value', unsubscribe);
+  }, [queryClient]);
+
+  // Return the query result (cached data)
+  return useQuery({
+    queryKey: ['dashboardData'],
+    queryFn: async () => null,
+    initialData: null,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+    enabled: true,
+  });
 } 

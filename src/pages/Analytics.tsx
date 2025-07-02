@@ -2,12 +2,12 @@ import React, { useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import DataTable from '@/components/dashboard/DataTable';
-import { useDashboardData } from '@/services/mergedMockDataWithRealtime';
+import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
 import { useUserData } from '@/hooks/useUserData';
 import { Bolt, Zap, Gauge } from 'lucide-react';
 
 const Analytics = () => {
-  const { data, loading } = useDashboardData();
+  const { data, isLoading: loading } = useRealtimeDashboardData();
   const { trackPageAccess } = useUserData();
 
   // Track page access when component mounts
@@ -75,7 +75,7 @@ const Analytics = () => {
     return { date: name, time: '' };
   };
 
-  if (loading) {
+  if (loading || !data) {
     return (
       <Layout>
         <div className="h-full flex items-center justify-center">
