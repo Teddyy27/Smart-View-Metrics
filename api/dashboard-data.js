@@ -30,12 +30,14 @@ export default async function handler(req) {
     const acLogs = val.ac_power_logs || {};
     const fanLogs = val.power_logs || {};
     const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
+    const refrigeratorLogs = val.refrigirator && val.refrigirator.power_logs ? val.refrigirator.power_logs : {};
 
     const allTimestamps = Array.from(
       new Set([
         ...Object.keys(acLogs),
         ...Object.keys(fanLogs),
         ...Object.keys(lightLogs),
+        ...Object.keys(refrigeratorLogs),
       ])
     ).sort();
 
@@ -43,16 +45,19 @@ export default async function handler(req) {
       const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;
       const fanPower = fanLogs[ts] ? Number(fanLogs[ts]) : 0;
       const lightPower = typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0;
-      const totalPower = acPower + fanPower + lightPower;
+      const refrigeratorPower = typeof refrigeratorLogs[ts] === 'number' ? refrigeratorLogs[ts] : 0;
+      const totalPower = acPower + fanPower + lightPower + refrigeratorPower;
       return {
         name: ts,
         acPower,
         fanPower,
         lightPower,
+        refrigeratorPower,
         totalPower,
         acBenchmark: 2500,
         fanBenchmark: 500,
         lightBenchmark: 300,
+        refrigeratorBenchmark: 200,
         consumption: 0,
         prediction: 0,
         benchmark: 0,
@@ -86,6 +91,13 @@ export default async function handler(req) {
           ? Number((Object.values(lightLogs).map(Number)).reduce((a, b) => a + b, 0))
           : 0,
         color: '#8b5cf6',
+      },
+      {
+        name: 'Refrigerator',
+        value: refrigeratorLogs
+          ? Number((Object.values(refrigeratorLogs).map(Number)).reduce((a, b) => a + b, 0))
+          : 0,
+        color: '#06b6d4',
       },
       {
         name: 'Other',

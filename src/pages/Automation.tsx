@@ -32,35 +32,7 @@ interface Device {
 const ROOM_NAME = "Living Room";
 
 const Automation = () => {
-  const [devices, setDevices] = useState<Device[]>([
-    {
-      id: 'light-1',
-      name: 'Main Light',
-      type: 'light',
-      status: 'online',
-      isOn: true,
-      value: 80,
-      lastUpdated: new Date().toISOString(),
-    },
-    {
-      id: 'ac-1',
-      name: 'AC Unit',
-      type: 'ac',
-      status: 'online',
-      isOn: true,
-      value: 24,
-      lastUpdated: new Date().toISOString(),
-    },
-    {
-      id: 'fan-1',
-      name: 'Ceiling Fan',
-      type: 'fan',
-      status: 'online',
-      isOn: false,
-      value: 0,
-      lastUpdated: new Date().toISOString(),
-    }
-  ]);
+  const [devices, setDevices] = useState<Device[]>([]);
 
   // Handle adding a new device
   const handleAddDevice = (newDevice: Omit<Device, 'id' | 'lastUpdated'>) => {
