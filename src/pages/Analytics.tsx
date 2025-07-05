@@ -16,9 +16,9 @@ const Analytics = () => {
   }, [trackPageAccess]);
 
   // Helper to format power in kW
-  const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
+  const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(2) : '0.00');
   // Helper to format total usage in kWh
-  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 1000).toFixed(3) : '0.000';
+  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 1000).toFixed(2) : '0.00';
 
   // Device summary table columns
   const deviceColumns = [

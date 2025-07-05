@@ -32,7 +32,7 @@ const LineChart: React.FC<LineChartProps> = ({
   title,
   data,
   lines,
-  timeRanges = ['24h', '7d', '30d', '1y'],
+  timeRanges = ['24h', '7d'],
   loading = false
 }) => {
   const [activeRange, setActiveRange] = useState(timeRanges[0]);

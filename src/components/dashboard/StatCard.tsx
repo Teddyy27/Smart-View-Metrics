@@ -24,7 +24,7 @@ const StatCard: React.FC<StatCardProps> = ({
       <div className="flex justify-between items-start">
         <div>
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold mt-1">{value}</p>
+          <p className="text-2xl font-bold mt-1">{typeof value === 'number' ? value.toFixed(2) : value}</p>
         </div>
         {icon && (
           <div className="p-2 rounded-full bg-primary/10 text-primary">

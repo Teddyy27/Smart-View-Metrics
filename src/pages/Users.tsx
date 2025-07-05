@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { 
   UserRound, 
   Users as UsersIcon, 
-  Search, 
   Clock, 
   Activity,
   Building
@@ -21,7 +20,6 @@ const UsersPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { data, loading, trackPageAccess } = useUserData();
-  const [searchQuery, setSearchQuery] = useState('');
 
   // Track page access when component mounts
   useEffect(() => {
@@ -90,16 +88,6 @@ const UsersPage = () => {
           </div>
           
           <div className="flex gap-2 w-full md:w-auto">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search users..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
             <Button>
               <UserRound className="mr-2 h-4 w-4" />
               Add User

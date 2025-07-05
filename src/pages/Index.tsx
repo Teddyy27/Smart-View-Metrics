@@ -158,12 +158,12 @@ const Dashboard = () => {
               data={[
                 ...data.usageData.map(item => ({
                   name: item.name,
-                  usage: Number((Number(item.value) / 1000).toFixed(3)) // Convert to kWh
+                  usage: Number((Number(item.value) / 1000).toFixed(2)) // Convert to kWh
                 })),
                 {
                   name: 'Fan',
                   usage: data.energyData && data.energyData.length > 0 
-                    ? Number((data.energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(3))
+                    ? Number((data.energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
                     : 0
                 }
               ].sort((a, b) => b.usage - a.usage)}
@@ -191,7 +191,7 @@ const Dashboard = () => {
                   <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].acPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-blue-900">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].acPower) / 1000).toFixed(3) : '0.000'} kW
+                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].acPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-blue-600">
                   {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].acPower) > 0 ? 'Running' : 'Idle'}
@@ -205,7 +205,7 @@ const Dashboard = () => {
                   <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].fanPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-green-900">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].fanPower) / 1000).toFixed(3) : '0.000'} kW
+                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].fanPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-green-600">
                   {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].fanPower) > 0 ? 'Running' : 'Idle'}
@@ -219,7 +219,7 @@ const Dashboard = () => {
                   <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].lightPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-purple-900">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].lightPower) / 1000).toFixed(3) : '0.000'} kW
+                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].lightPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-purple-600">
                   {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].lightPower) > 0 ? 'On' : 'Off'}

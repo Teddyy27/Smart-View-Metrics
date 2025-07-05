@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, MoreHorizontal, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -34,7 +33,6 @@ const DataTable: React.FC<DataTableProps> = ({
 }) => {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [searchTerm, setSearchTerm] = useState('');
   
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -45,16 +43,9 @@ const DataTable: React.FC<DataTableProps> = ({
     }
   };
   
-  // Filter data based on search term
-  const filteredData = data.filter(item => {
-    return Object.values(item).some(value => 
-      value && value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
-  
   // Sort data based on sort key and order
   const sortedData = sortKey
-    ? [...filteredData].sort((a, b) => {
+    ? [...data].sort((a, b) => {
         const aValue = a[sortKey];
         const bValue = b[sortKey];
         
@@ -63,22 +54,12 @@ const DataTable: React.FC<DataTableProps> = ({
         const comparison = aValue > bValue ? 1 : -1;
         return sortOrder === 'asc' ? comparison : -comparison;
       })
-    : filteredData;
+    : data;
   
   return (
     <div className="dashboard-card">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
         <h3 className="font-medium text-lg">{title}</h3>
-        <div className="relative w-full md:w-auto min-w-[200px]">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search..."
-            className="pl-8"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
       </div>
       
       <div className="overflow-x-auto">

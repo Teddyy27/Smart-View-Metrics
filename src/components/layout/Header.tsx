@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, ChevronDown, Menu, Sun, Moon, Search } from 'lucide-react';
+import { Bell, ChevronDown, Menu, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -73,14 +73,6 @@ const Header: React.FC<HeaderProps> = ({
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <div className="relative max-w-md hidden md:block">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search..."
-            className="pl-8 w-[300px] bg-background"
-          />
-        </div>
       </div>
       
       <div className="flex items-center gap-2">
