@@ -44,6 +44,11 @@ const Analytics = () => {
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].fanPower)) : 'N/A',
       total: data?.energyData ? totalKWh(data.energyData, 'fanPower') : 0,
     },
+    {
+      name: 'Refrigerator',
+      latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].refrigeratorPower)) : 'N/A',
+      total: data?.energyData ? totalKWh(data.energyData, 'refrigeratorPower') : 0,
+    },
   ];
 
   // Format date and time for the table (from 'name' field)
@@ -96,7 +101,7 @@ const Analytics = () => {
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             title="Total AC Usage"
             value={deviceData[0].total}
@@ -114,6 +119,12 @@ const Analytics = () => {
             value={deviceData[2].total}
             change={0}
             icon={<Gauge className="h-6 w-6" />}
+          />
+          <StatCard
+            title="Total Refrigerator Usage"
+            value={deviceData[3].total}
+            change={0}
+            icon={<Gauge className="h-6 w-6 text-cyan-500" />}
           />
         </div>
 
@@ -136,6 +147,7 @@ const Analytics = () => {
               { key: 'acPower', header: 'AC Power (kW)', sortable: true, render: (val: number) => toKW(val) },
               { key: 'fanPower', header: 'Fan Power (kW)', sortable: true, render: (val: number) => toKW(val) },
               { key: 'lightPower', header: 'Light Power (kW)', sortable: true, render: (val: number) => toKW(val) },
+              { key: 'refrigeratorPower', header: 'Refrigerator Power (kW)', sortable: true, render: (val: number) => toKW(val) },
             ]}
             data={data?.energyData?.slice(-25).reverse() ?? []}
           />

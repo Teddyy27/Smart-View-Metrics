@@ -145,6 +145,7 @@ const Dashboard = () => {
                 { key: 'acPower', color: '#3b82f6', name: 'AC Power' },
                 { key: 'fanPower', color: '#10b981', name: 'Fan Power' },
                 { key: 'lightPower', color: '#8b5cf6', name: 'Light Power' },
+                { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator Power' },
                 { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
               ]}
             />
@@ -155,18 +156,26 @@ const Dashboard = () => {
           <div>
             <BarChart
               title="Device Usage (kWh)"
-              data={[
-                ...data.usageData.map(item => ({
-                  name: item.name,
-                  usage: Number((Number(item.value) / 1000).toFixed(2)) // Convert to kWh
-                })),
-                {
-                  name: 'Fan',
-                  usage: data.energyData && data.energyData.length > 0 
-                    ? Number((data.energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
-                    : 0
-                }
-              ].sort((a, b) => b.usage - a.usage)}
+              data={
+                [
+                  ...data.usageData.map(item => ({
+                    name: item.name,
+                    usage: Number((Number(item.value) / 1000).toFixed(2))
+                  })),
+                  {
+                    name: 'Fan',
+                    usage: data.energyData && data.energyData.length > 0 
+                      ? Number((data.energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
+                      : 0
+                  },
+                  {
+                    name: 'Refrigerator',
+                    usage: data.energyData && data.energyData.length > 0 
+                      ? Number((data.energyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
+                      : 0
+                  }
+                ].sort((a, b) => b.usage - a.usage)
+              }
               bars={[
                 {
                   key: 'usage',
@@ -183,7 +192,7 @@ const Dashboard = () => {
         <div className="mb-6">
           <div className="bg-card rounded-lg border border-border p-6">
             <h3 className="text-lg font-semibold mb-4 text-card-foreground">Device Status Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* AC Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
@@ -221,6 +230,19 @@ const Dashboard = () => {
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].lightPower) > 0 ? 'On' : 'Off'}
+                </p>
+              </div>
+              {/* Refrigerator Status */}
+              <div className="bg-card rounded-lg p-4 border border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-card-foreground">Refrigerator</h4>
+                  <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].refrigeratorPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                </div>
+                <p className="text-2xl font-bold text-card-foreground">
+                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].refrigeratorPower) / 1000).toFixed(2) : '0.00'} kW
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].refrigeratorPower) > 0 ? 'Running' : 'Idle'}
                 </p>
               </div>
             </div>

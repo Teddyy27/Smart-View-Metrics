@@ -30,7 +30,7 @@ export default async function handler(req) {
     const acLogs = val.ac_power_logs || {};
     const fanLogs = val.power_logs || {};
     const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
-    const refrigeratorLogs = val.refrigirator && val.refrigirator.power_logs ? val.refrigirator.power_logs : {};
+    const refrigeratorLogs = val.refrigerator && val.refrigerator.power_logs ? val.refrigerator.power_logs : {};
 
     const allTimestamps = Array.from(
       new Set([
