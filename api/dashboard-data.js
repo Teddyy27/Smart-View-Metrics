@@ -19,7 +19,7 @@ export default async function handler(req) {
 
   try {
     // --- Fetch from Firebase REST API ---
-    const firebaseUrl = 'https://console.firebase.google.com/u/2/project/smart-home-5bf1a/database/smart-home-5bf1a-default-rtdb/data';
+    const firebaseUrl = 'https://smart-home-5bf1a-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
     const response = await fetch(firebaseUrl);
     if (!response.ok) {
       throw new Error(`Firebase fetch failed: ${response.statusText}`);
