@@ -1,11 +1,12 @@
 // api/dashboard-data.ts
+import fetch from 'node-fetch';
 
-// If using Vercel/Next.js API routes, you do NOT need to import fetch
-// If you are running in Node.js (not Edge), you may need: import fetch from 'node-fetch';
+let cache: any = {
+  data: null,
+  lastFetched: 0
+};
 
-let cache: { data: any; lastFetched: number } = { data: null, lastFetched: 0 };
-
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   const now = Date.now();
 
   // Cache for 1 minute (60000 ms)
@@ -20,7 +21,7 @@ export default async function handler(req: any, res: any) {
     if (!response.ok) {
       throw new Error(`Firebase fetch failed: ${response.statusText}`);
     }
-    const val = await response.json();
+    const val = await response.json() as any;
 
     // --- Process data to match dashboard structure ---
     const acLogs = val.ac_power_logs || {};
@@ -72,14 +73,14 @@ export default async function handler(req: any, res: any) {
       {
         name: 'AC',
         value: acLogs
-          ? Number(Object.values(acLogs).reduce((a: any, b: any) => a + b, 0))
+          ? Number((Object.values(acLogs).map(Number) as number[]).reduce((a, b) => a + b, 0))
           : 0,
         color: '#3b82f6',
       },
       {
         name: 'Lighting',
         value: lightLogs
-          ? Number(Object.values(lightLogs).reduce((a: any, b: any) => a + b, 0))
+          ? Number((Object.values(lightLogs).map(Number) as number[]).reduce((a, b) => a + b, 0))
           : 0,
         color: '#8b5cf6',
       },
@@ -160,7 +161,7 @@ export default async function handler(req: any, res: any) {
     };
 
     res.status(200).json(dashboardData);
-  } catch (error: any) {
+  } catch (error) {
     console.error('API error:', error);
     res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
