@@ -148,7 +148,7 @@ const Dashboard = () => {
                 { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
               ]}
             />
-            <div className="mt-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+            <div className="mt-2 text-sm text-card-foreground bg-card p-3 rounded-lg">
               <strong>Benchmarks:</strong> AC: 2.5kW | Fan: 0.5kW | Lighting: 0.3kW | Total: 3.3kW
             </div>
           </div>

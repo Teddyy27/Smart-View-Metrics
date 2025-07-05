@@ -108,7 +108,7 @@ const Header: React.FC<HeaderProps> = ({
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate('/user')}>Profile</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/user')}>Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')}>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   Log out
