@@ -1,6 +1,4 @@
 // api/dashboard-data.ts
-import fetch from 'node-fetch';
-
 export const config = { runtime: 'edge' };
 
 let cache = {
