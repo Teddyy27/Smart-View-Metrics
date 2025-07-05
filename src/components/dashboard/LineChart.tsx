@@ -41,17 +41,19 @@ const LineChart: React.FC<LineChartProps> = ({
   
   // Helper to format x-axis labels
   const formatXAxis = (name: string) => {
-    // Try to parse as ISO or fallback
-    let date: Date;
     if (!name) return '';
-    if (!isNaN(Number(name))) {
+    let date: Date;
+    // Try to parse as ISO or timestamp, fallback to showing the raw value
+    if (!isNaN(Number(name)) && Number(name) > 1000000000) {
+      // Likely a timestamp
       date = new Date(Number(name));
-    } else {
+    } else if (!isNaN(Date.parse(name))) {
       date = new Date(name);
+    } else {
+      // Not a valid date, just return the label as is
+      return name;
     }
-    if (activeRange === '1h') {
-      return format(date, 'HH:mm');
-    } else if (activeRange === '24h') {
+    if (activeRange === '1h' || activeRange === '24h') {
       return format(date, 'HH:mm');
     } else if (activeRange === '7d') {
       return format(date, 'EEE');
