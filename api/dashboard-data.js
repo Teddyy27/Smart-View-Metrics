@@ -1,17 +1,22 @@
 // api/dashboard-data.ts
 import fetch from 'node-fetch';
 
-let cache: any = {
+export const config = { runtime: 'edge' };
+
+let cache = {
   data: null,
   lastFetched: 0
 };
 
-export default async function handler(req, res) {
+export default async function handler(req) {
   const now = Date.now();
 
   // Cache for 1 minute (60000 ms)
   if (cache.data && now - cache.lastFetched < 60000) {
-    return res.status(200).json(cache.data);
+    return new Response(JSON.stringify(cache.data), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   try {
@@ -21,7 +26,7 @@ export default async function handler(req, res) {
     if (!response.ok) {
       throw new Error(`Firebase fetch failed: ${response.statusText}`);
     }
-    const val = await response.json() as any;
+    const val = await response.json();
 
     // --- Process data to match dashboard structure ---
     const acLogs = val.ac_power_logs || {};
@@ -73,14 +78,14 @@ export default async function handler(req, res) {
       {
         name: 'AC',
         value: acLogs
-          ? Number((Object.values(acLogs).map(Number) as number[]).reduce((a, b) => a + b, 0))
+          ? Number((Object.values(acLogs).map(Number)).reduce((a, b) => a + b, 0))
           : 0,
         color: '#3b82f6',
       },
       {
         name: 'Lighting',
         value: lightLogs
-          ? Number((Object.values(lightLogs).map(Number) as number[]).reduce((a, b) => a + b, 0))
+          ? Number((Object.values(lightLogs).map(Number)).reduce((a, b) => a + b, 0))
           : 0,
         color: '#8b5cf6',
       },
@@ -102,7 +107,7 @@ export default async function handler(req, res) {
     ];
 
     // Alerts data
-    const alertsData: any[] = [];
+    const alertsData = [];
     if (val.fan_state === false) {
       alertsData.push({
         id: 1,
@@ -154,15 +159,19 @@ export default async function handler(req, res) {
       alertsData,
     };
 
-    // --- Store in cache ---
     cache = {
       data: dashboardData,
       lastFetched: now,
     };
 
-    res.status(200).json(dashboardData);
+    return new Response(JSON.stringify(dashboardData), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
-    console.error('API error:', error);
-    res.status(500).json({ error: error.message || 'Internal Server Error' });
+    return new Response(JSON.stringify({ error: error.message || 'Internal Server Error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
