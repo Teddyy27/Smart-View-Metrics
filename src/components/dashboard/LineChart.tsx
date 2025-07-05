@@ -10,6 +10,7 @@ import {
   Legend
 } from 'recharts';
 import { Button } from '@/components/ui/button';
+import { format, parseISO } from 'date-fns';
 
 interface DataPoint {
   name: string;
@@ -32,12 +33,32 @@ const LineChart: React.FC<LineChartProps> = ({
   title,
   data,
   lines,
-  timeRanges = ['24h', '7d'],
+  timeRanges = ['1h', '24h', '7d'],
   loading = false
 }) => {
   const [activeRange, setActiveRange] = useState(timeRanges[0]);
   const [chartData, setChartData] = useState<DataPoint[]>([]);
   
+  // Helper to format x-axis labels
+  const formatXAxis = (name: string) => {
+    // Try to parse as ISO or fallback
+    let date: Date;
+    if (!name) return '';
+    if (!isNaN(Number(name))) {
+      date = new Date(Number(name));
+    } else {
+      date = new Date(name);
+    }
+    if (activeRange === '1h') {
+      return format(date, 'HH:mm');
+    } else if (activeRange === '24h') {
+      return format(date, 'HH:mm');
+    } else if (activeRange === '7d') {
+      return format(date, 'EEE');
+    }
+    return name;
+  };
+
   // Simulate fetching different data based on time range
   useEffect(() => {
     const fetchData = () => {
@@ -46,12 +67,12 @@ const LineChart: React.FC<LineChartProps> = ({
       
       // Simulate loading
       setTimeout(() => {
-        if (activeRange === '24h') {
-          setChartData(data.slice(-24));
+        if (activeRange === '1h') {
+          setChartData(data.slice(-6));
+        } else if (activeRange === '24h') {
+          setChartData(data.slice(-6));
         } else if (activeRange === '7d') {
           setChartData(data.slice(-7));
-        } else if (activeRange === '30d') {
-          setChartData(data.slice(-30));
         } else {
           setChartData(data);
         }
@@ -98,6 +119,7 @@ const LineChart: React.FC<LineChartProps> = ({
                 tick={{ fontSize: 12 }}
                 tickLine={false}
                 axisLine={{ stroke: '#e5e7eb' }}
+                tickFormatter={formatXAxis}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
