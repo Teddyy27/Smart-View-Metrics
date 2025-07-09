@@ -66,37 +66,31 @@ export default async function handler(req) {
 
     // Peak usage in last 24 hours
     const nowDate = new Date();
-    const last24h = energyData.filter((item) => {
-      try {
-        const itemDate = new Date(item.name.split('_')[0]);
-        return nowDate.getTime() - itemDate.getTime() <= 24 * 60 * 60 * 1000;
-      } catch {
-        return false;
-      }
-    });
-    const peak = Math.max(...last24h.map((item) => item.totalPower), 0);
+    const currentYear = nowDate.getFullYear();
+    const currentMonth = nowDate.getMonth(); // 0-indexed
 
-    // Usage data (AC and Lighting)
+    // Filter energyData for current month
+    const energyDataThisMonth = energyData.filter(item => {
+      const [dateStr] = item.name.split('_');
+      const [year, month] = dateStr.split('-');
+      return Number(year) === currentYear && Number(month) - 1 === currentMonth;
+    });
+
+    // Usage data (AC, Lighting, Refrigerator) for current month only
     const usageData = [
       {
         name: 'AC',
-        value: acLogs
-          ? Number((Object.values(acLogs).map(Number)).reduce((a, b) => a + b, 0))
-          : 0,
+        value: energyDataThisMonth.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
         color: '#3b82f6',
       },
       {
         name: 'Lighting',
-        value: lightLogs
-          ? Number((Object.values(lightLogs).map(Number)).reduce((a, b) => a + b, 0))
-          : 0,
+        value: energyDataThisMonth.reduce((sum, row) => sum + (typeof row.lightPower === 'number' ? row.lightPower : 0), 0),
         color: '#8b5cf6',
       },
       {
         name: 'Refrigerator',
-        value: refrigeratorLogs
-          ? Number((Object.values(refrigeratorLogs).map(Number)).reduce((a, b) => a + b, 0))
-          : 0,
+        value: energyDataThisMonth.reduce((sum, row) => sum + (typeof row.refrigeratorPower === 'number' ? row.refrigeratorPower : 0), 0),
         color: '#06b6d4',
       },
       {

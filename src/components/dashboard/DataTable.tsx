@@ -82,7 +82,6 @@ const DataTable: React.FC<DataTableProps> = ({
                   </div>
                 </th>
               ))}
-              <th className="w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -100,26 +99,11 @@ const DataTable: React.FC<DataTableProps> = ({
                         : record[column.key]}
                     </td>
                   ))}
-                  <td>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View details</DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length + 1} className="text-center py-4 text-muted-foreground">
+                <td colSpan={columns.length} className="text-center py-4 text-muted-foreground">
                   No data found
                 </td>
               </tr>

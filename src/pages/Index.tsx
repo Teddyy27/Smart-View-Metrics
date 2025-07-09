@@ -147,15 +147,15 @@ const Dashboard = () => {
               title="Device Power Consumption"
               data={data.energyData}
               lines={[
-                { key: 'acPower', color: '#3b82f6', name: 'AC Power' },
-                { key: 'fanPower', color: '#10b981', name: 'Fan Power' },
-                { key: 'lightPower', color: '#8b5cf6', name: 'Light Power' },
-                { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator Power' },
+                { key: 'acPower', color: '#3b82f6', name: 'AC' },
+                { key: 'fanPower', color: '#10b981', name: 'Fan' },
+                { key: 'lightPower', color: '#8b5cf6', name: 'Light' },
+                { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator' },
                 { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
               ]}
             />
             <div className="mt-2 text-sm text-card-foreground bg-card p-3 rounded-lg">
-              <strong>Benchmarks:</strong> AC: 2.5kW | Fan: 0.5kW | Lighting: 0.3kW | Total: 3.3kW
+              <strong>Benchmarks:</strong> AC: 3.5kW | Fan: 0.5kW | Lighting: 0.4kW | Refrigerator: 0.3kW | Total: 4.7kW
             </div>
           </div>
           <div>

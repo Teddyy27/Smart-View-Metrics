@@ -33,7 +33,7 @@ const StatCard: React.FC<StatCardProps> = ({
         )}
       </div>
       
-      {change !== undefined && (
+      {/* {change !== undefined && (
         <div className="flex items-center mt-2 text-sm">
           {isPositive ? (
             <>
@@ -48,7 +48,7 @@ const StatCard: React.FC<StatCardProps> = ({
           )}
           <span className="text-muted-foreground ml-1">vs last period</span>
         </div>
-      )}
+      )} */}
     </div>
   );
 };
