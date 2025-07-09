@@ -69,28 +69,45 @@ export default async function handler(req) {
     const currentYear = nowDate.getFullYear();
     const currentMonth = nowDate.getMonth(); // 0-indexed
 
-    // Filter energyData for current month
+    // Improved: Filter energyData for current month (1-based month comparison)
     const energyDataThisMonth = energyData.filter(item => {
       const [dateStr] = item.name.split('_');
       const [year, month] = dateStr.split('-');
-      return Number(year) === currentYear && Number(month) - 1 === currentMonth;
+      return Number(year) === currentYear && parseInt(month, 10) === (currentMonth + 1);
     });
+
+    // If no data for the current month, use zeros
+    const safeEnergyData = energyDataThisMonth.length > 0 ? energyDataThisMonth : [{
+      name: new Date().toISOString().split('T')[0] + '_00-00',
+      acPower: 0,
+      fanPower: 0,
+      lightPower: 0,
+      refrigeratorPower: 0,
+      totalPower: 0,
+      acBenchmark: 0,
+      fanBenchmark: 0,
+      lightBenchmark: 0,
+      refrigeratorBenchmark: 0,
+      consumption: 0,
+      prediction: 0,
+      benchmark: 0,
+    }];
 
     // Usage data (AC, Lighting, Refrigerator) for current month only
     const usageData = [
       {
         name: 'AC',
-        value: energyDataThisMonth.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
+        value: safeEnergyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
         color: '#3b82f6',
       },
       {
         name: 'Lighting',
-        value: energyDataThisMonth.reduce((sum, row) => sum + (typeof row.lightPower === 'number' ? row.lightPower : 0), 0),
+        value: safeEnergyData.reduce((sum, row) => sum + (typeof row.lightPower === 'number' ? row.lightPower : 0), 0),
         color: '#8b5cf6',
       },
       {
         name: 'Refrigerator',
-        value: energyDataThisMonth.reduce((sum, row) => sum + (typeof row.refrigeratorPower === 'number' ? row.refrigeratorPower : 0), 0),
+        value: safeEnergyData.reduce((sum, row) => sum + (typeof row.refrigeratorPower === 'number' ? row.refrigeratorPower : 0), 0),
         color: '#06b6d4',
       },
       {
@@ -135,12 +152,13 @@ export default async function handler(req) {
       });
     }
 
+    // When building dashboardData, use safeEnergyData for energyData
     const dashboardData = {
       stats: {
         energyUsage: {
           value:
-            energyData.length > 0
-              ? `${(energyData[energyData.length - 1].totalPower / 1000).toFixed(2)} kW`
+            safeEnergyData.length > 0
+              ? `${(safeEnergyData[safeEnergyData.length - 1].totalPower / 1000).toFixed(2)} kW`
               : 'N/A',
           change: 0,
         },
@@ -149,7 +167,7 @@ export default async function handler(req) {
           change: 0,
         },
         efficiency: {
-          value: peak > 0 ? `${(peak / 1000).toFixed(2)} kW` : 'N/A',
+          value: safeEnergyData.length > 0 ? `${(Math.max(...safeEnergyData.map(item => item.totalPower), 0) / 1000).toFixed(2)} kW` : 'N/A',
           change: 0,
         },
         automationStatus: {
@@ -157,7 +175,7 @@ export default async function handler(req) {
           change: 0,
         },
       },
-      energyData,
+      energyData: safeEnergyData,
       usageData,
       revenueData,
       alertsData,
