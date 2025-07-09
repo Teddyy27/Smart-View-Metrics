@@ -4,12 +4,17 @@ import StatCard from '@/components/dashboard/StatCard';
 import LineChart from '@/components/dashboard/LineChart';
 import BarChart from '@/components/dashboard/BarChart';
 import DataTable from '@/components/dashboard/DataTable';
-import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
+import useSWR from 'swr';
 import { useUserData } from '@/hooks/useUserData';
 import { Bolt, TrendingUp, Zap } from 'lucide-react';
 
+const fetcher = (url: string) => fetch(url).then(res => res.json());
+
 const Dashboard = () => {
-  const { data, isLoading: loading } = useRealtimeDashboardData();
+  const { data, error, isLoading: loading } = useSWR('/api/dashboard-data', fetcher, {
+    dedupingInterval: 5 * 60 * 1000, // 5 minutes
+    revalidateOnFocus: false,
+  });
   const { trackPageAccess } = useUserData();
   
   // Track page access when component mounts

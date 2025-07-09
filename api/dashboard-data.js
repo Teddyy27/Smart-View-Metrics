@@ -9,8 +9,8 @@ let cache = {
 export default async function handler(req) {
   const now = Date.now();
 
-  // Cache for 1 minute (60000 ms)
-  if (cache.data && now - cache.lastFetched < 60000) {
+  // Cache for 5 minutes (300000 ms)
+  if (cache.data && now - cache.lastFetched < 5 * 60 * 1000) {
     return new Response(JSON.stringify(cache.data), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
