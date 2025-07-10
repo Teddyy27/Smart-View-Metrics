@@ -35,7 +35,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
     { name: 'Dashboard', icon: Home, path: '/' },
     { name: 'Analytics', icon: BarChart2, path: '/analytics' },
     { name: 'Users', icon: Users, path: '/users' },
-    { name: 'Reports', icon: FileText, path: '/reports' },
+    { name: 'Report', icon: PieChart, path: '/report' },
     { name: 'Automation', icon: Zap, path: '/automation' },
     // { name: 'Data Sources', icon: Database, path: '/data-sources' },
     { name: 'Settings', icon: Settings, path: '/settings' },

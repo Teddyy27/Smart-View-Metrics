@@ -11,6 +11,7 @@ import User from "./pages/User";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import AnalyticsPage from "./pages/Analytics";
+import Report from "./pages/Report";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react"
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/users" element={<Users />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/report" element={<Report />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
