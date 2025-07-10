@@ -86,13 +86,7 @@ const UsersPage = () => {
               Users who have accessed the smart home dashboard
             </p>
           </div>
-          
-          <div className="flex gap-2 w-full md:w-auto">
-            <Button>
-              <UserRound className="mr-2 h-4 w-4" />
-              Add User
-            </Button>
-          </div>
+          {/* Removed Add User button */}
         </div>
 
         <Card>
@@ -106,7 +100,10 @@ const UsersPage = () => {
           <CardContent>
             <div className="space-y-4">
               {filteredUsers.length === 0 ? (
-                <p className="text-center py-4 text-muted-foreground">No users found</p>
+                <div className="text-center py-4 text-muted-foreground flex flex-col items-center gap-2">
+                  <p>No users found</p>
+                  <span className="text-xs">Invite users by sharing the dashboard link or by enabling user registration in settings.</span>
+                </div>
               ) : (
                 filteredUsers.map((dashboardUser) => (
                   <div key={dashboardUser.userId} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">

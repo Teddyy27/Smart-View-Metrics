@@ -14,6 +14,7 @@ import AnalyticsPage from "./pages/Analytics";
 import Report from "./pages/Report";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react"
+import PrivateRoute from "./PrivateRoute";
 
 const queryClient = new QueryClient();
 
@@ -25,14 +26,63 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/automation" element={<Automation />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/user" element={<User />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/report" element={<Report />} />
+            <Route
+              path="/"
+              element={
+                <PrivateRoute>
+                  <Index />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/automation"
+              element={
+                <PrivateRoute>
+                  <Automation />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/user"
+              element={
+                <PrivateRoute>
+                  <User />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <PrivateRoute>
+                  <Users />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/analytics"
+              element={
+                <PrivateRoute>
+                  <AnalyticsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <PrivateRoute>
+                  <Settings />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/report"
+              element={
+                <PrivateRoute>
+                  <Report />
+                </PrivateRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

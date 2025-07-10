@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import LineChart from '@/components/dashboard/LineChart';
@@ -10,12 +10,29 @@ import { Bolt, TrendingUp, Zap } from 'lucide-react';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
+// Helper functions
+function get10MinInterval(ts: string) {
+  const [, time] = ts.split('_');
+  if (!time) return '';
+  const [h, m] = time.split('-');
+  const min = Math.floor(Number(m) / 10) * 10;
+  return `${h}:${min.toString().padStart(2, '0')}`;
+}
+function get4HrInterval(ts: string) {
+  const [, time] = ts.split('_');
+  if (!time) return '';
+  const [h] = time.split('-');
+  const hour = Math.floor(Number(h) / 4) * 4;
+  return `${hour.toString().padStart(2, '0')}:00`;
+}
+
 const Dashboard = () => {
   const { data, error, isLoading: loading } = useSWR('/api/dashboard-data', fetcher, {
     dedupingInterval: 5 * 60 * 1000, // 5 minutes
     revalidateOnFocus: false,
   });
   const { trackPageAccess } = useUserData();
+  const [view, setView] = useState<'1hr' | '24hr'>('1hr');
   
   // Track page access when component mounts
   useEffect(() => {
@@ -98,6 +115,55 @@ const Dashboard = () => {
     }
   ];
   
+  // Prepare chart data based on view
+  const chartData = React.useMemo(() => {
+    if (!data?.energyData) return [];
+    const now = new Date();
+    if (view === '1hr') {
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      const filtered = data.energyData.filter(item => {
+        const [date, time] = item.name.split('_');
+        const dt = new Date(`${date}T${time.replace('-', ':')}:00`);
+        return dt >= oneHourAgo && dt <= now;
+      });
+      const grouped: Record<string, any[]> = {};
+      filtered.forEach(item => {
+        const interval = get10MinInterval(item.name);
+        if (!grouped[interval]) grouped[interval] = [];
+        grouped[interval].push(item);
+      });
+      return Object.entries(grouped).map(([interval, items]) => ({
+        name: interval,
+        acPower: items.reduce((sum, i) => sum + Number(i.acPower), 0) / items.length,
+        fanPower: items.reduce((sum, i) => sum + Number(i.fanPower), 0) / items.length,
+        lightPower: items.reduce((sum, i) => sum + Number(i.lightPower), 0) / items.length,
+        refrigeratorPower: items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length,
+        totalPower: items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length,
+      }));
+    } else {
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const filtered = data.energyData.filter(item => {
+        const [date, time] = item.name.split('_');
+        const dt = new Date(`${date}T${time.replace('-', ':')}:00`);
+        return dt >= oneDayAgo && dt <= now;
+      });
+      const grouped: Record<string, any[]> = {};
+      filtered.forEach(item => {
+        const interval = get4HrInterval(item.name);
+        if (!grouped[interval]) grouped[interval] = [];
+        grouped[interval].push(item);
+      });
+      return Object.entries(grouped).map(([interval, items]) => ({
+        name: interval,
+        acPower: items.reduce((sum, i) => sum + Number(i.acPower), 0) / items.length,
+        fanPower: items.reduce((sum, i) => sum + Number(i.fanPower), 0) / items.length,
+        lightPower: items.reduce((sum, i) => sum + Number(i.lightPower), 0) / items.length,
+        refrigeratorPower: items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length,
+        totalPower: items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length,
+      }));
+    }
+  }, [data, view]);
+  
   if (loading || !data) {
     return (
       <Layout>
@@ -140,12 +206,28 @@ const Dashboard = () => {
           />
         </div>
         
+        {/* View toggle */}
+        <div className="flex gap-2 mb-2">
+          <button
+            className={`px-3 py-1 rounded ${view === '1hr' ? 'bg-primary text-white' : 'bg-muted'}`}
+            onClick={() => setView('1hr')}
+          >
+            1 Hour
+          </button>
+          <button
+            className={`px-3 py-1 rounded ${view === '24hr' ? 'bg-primary text-white' : 'bg-muted'}`}
+            onClick={() => setView('24hr')}
+          >
+            24 Hours
+          </button>
+        </div>
+        
         {/* Charts and Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            <LineChart 
+            <LineChart
               title="Device Power Consumption"
-              data={data.energyData}
+              data={chartData}
               lines={[
                 { key: 'acPower', color: '#3b82f6', name: 'AC' },
                 { key: 'fanPower', color: '#10b981', name: 'Fan' },
