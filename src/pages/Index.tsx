@@ -26,6 +26,33 @@ function get4HrInterval(ts: string) {
   return `${hour.toString().padStart(2, '0')}:00`;
 }
 
+// Helper to get last 6 completed 10-min intervals
+function getLast6TenMinIntervals(now = new Date()) {
+  const intervals = [];
+  let end = new Date(now);
+  end.setSeconds(0, 0);
+  end.setMinutes(Math.floor(end.getMinutes() / 10) * 10);
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(end.getTime() - i * 10 * 60 * 1000);
+    intervals.push(
+      `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    );
+  }
+  return intervals;
+}
+// Helper to get last 6 completed 4-hour intervals
+function getLast6FourHourIntervals(now = new Date()) {
+  const intervals = [];
+  let end = new Date(now);
+  end.setMinutes(0, 0, 0);
+  end.setHours(Math.floor(end.getHours() / 4) * 4);
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(end.getTime() - i * 4 * 60 * 60 * 1000);
+    intervals.push(`${d.getHours().toString().padStart(2, '0')}:00`);
+  }
+  return intervals;
+}
+
 const Dashboard = () => {
   const { data, error, isLoading: loading } = useSWR('/api/dashboard-data', fetcher, {
     dedupingInterval: 5 * 60 * 1000, // 5 minutes
@@ -120,47 +147,47 @@ const Dashboard = () => {
     if (!data?.energyData) return [];
     const now = new Date();
     if (activeRange === '1h') {
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      const filtered = data.energyData.filter(item => {
-        const [date, time] = item.name.split('_');
-        const dt = new Date(`${date}T${time.replace('-', ':')}:00`);
-        return dt >= oneHourAgo && dt <= now;
-      });
+      const intervals = getLast6TenMinIntervals(now);
       const grouped: Record<string, any[]> = {};
-      filtered.forEach(item => {
-        const interval = get10MinInterval(item.name);
-        if (!grouped[interval]) grouped[interval] = [];
-        grouped[interval].push(item);
+      intervals.forEach(label => { grouped[label] = []; });
+      data.energyData.forEach(item => {
+        const [date, time] = item.name.split('_');
+        const [h, m] = time.split('-');
+        const itemLabel = `${h.padStart(2, '0')}:${(Math.floor(Number(m) / 10) * 10).toString().padStart(2, '0')}`;
+        if (grouped[itemLabel]) grouped[itemLabel].push(item);
       });
-      return Object.entries(grouped).map(([interval, items]) => ({
-        name: interval,
-        acPower: items.reduce((sum, i) => sum + Number(i.acPower), 0) / items.length,
-        fanPower: items.reduce((sum, i) => sum + Number(i.fanPower), 0) / items.length,
-        lightPower: items.reduce((sum, i) => sum + Number(i.lightPower), 0) / items.length,
-        refrigeratorPower: items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length,
-        totalPower: items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length,
-      }));
+      return intervals.map(label => {
+        const items = grouped[label];
+        return {
+          name: label,
+          acPower: items.length ? items.reduce((sum, i) => sum + Number(i.acPower), 0) / items.length : 0,
+          fanPower: items.length ? items.reduce((sum, i) => sum + Number(i.fanPower), 0) / items.length : 0,
+          lightPower: items.length ? items.reduce((sum, i) => sum + Number(i.lightPower), 0) / items.length : 0,
+          refrigeratorPower: items.length ? items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length : 0,
+          totalPower: items.length ? items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length : 0,
+        };
+      });
     } else if (activeRange === '24h') {
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      const filtered = data.energyData.filter(item => {
-        const [date, time] = item.name.split('_');
-        const dt = new Date(`${date}T${time.replace('-', ':')}:00`);
-        return dt >= oneDayAgo && dt <= now;
-      });
+      const intervals = getLast6FourHourIntervals(now);
       const grouped: Record<string, any[]> = {};
-      filtered.forEach(item => {
-        const interval = get4HrInterval(item.name);
-        if (!grouped[interval]) grouped[interval] = [];
-        grouped[interval].push(item);
+      intervals.forEach(label => { grouped[label] = []; });
+      data.energyData.forEach(item => {
+        const [date, time] = item.name.split('_');
+        const [h] = time.split('-');
+        const itemLabel = `${(Math.floor(Number(h) / 4) * 4).toString().padStart(2, '0')}:00`;
+        if (grouped[itemLabel]) grouped[itemLabel].push(item);
       });
-      return Object.entries(grouped).map(([interval, items]) => ({
-        name: interval,
-        acPower: items.reduce((sum, i) => sum + Number(i.acPower), 0) / items.length,
-        fanPower: items.reduce((sum, i) => sum + Number(i.fanPower), 0) / items.length,
-        lightPower: items.reduce((sum, i) => sum + Number(i.lightPower), 0) / items.length,
-        refrigeratorPower: items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length,
-        totalPower: items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length,
-      }));
+      return intervals.map(label => {
+        const items = grouped[label];
+        return {
+          name: label,
+          acPower: items.length ? items.reduce((sum, i) => sum + Number(i.acPower), 0) / items.length : 0,
+          fanPower: items.length ? items.reduce((sum, i) => sum + Number(i.fanPower), 0) / items.length : 0,
+          lightPower: items.length ? items.reduce((sum, i) => sum + Number(i.lightPower), 0) / items.length : 0,
+          refrigeratorPower: items.length ? items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length : 0,
+          totalPower: items.length ? items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length : 0,
+        };
+      });
     } else {
       // Default: return all data
       return data.energyData;
