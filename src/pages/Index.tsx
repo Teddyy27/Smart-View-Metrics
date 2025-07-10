@@ -32,7 +32,7 @@ const Dashboard = () => {
     revalidateOnFocus: false,
   });
   const { trackPageAccess } = useUserData();
-  const [view, setView] = useState<'1hr' | '24hr'>('1hr');
+  // Remove view state
   
   // Track page access when component mounts
   useEffect(() => {
@@ -115,11 +115,11 @@ const Dashboard = () => {
     }
   ];
   
-  // Prepare chart data based on view
-  const chartData = React.useMemo(() => {
+  // Prepare chart data based on activeRange from LineChart
+  const getChartData = (activeRange: string) => {
     if (!data?.energyData) return [];
     const now = new Date();
-    if (view === '1hr') {
+    if (activeRange === '1h') {
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
       const filtered = data.energyData.filter(item => {
         const [date, time] = item.name.split('_');
@@ -140,7 +140,7 @@ const Dashboard = () => {
         refrigeratorPower: items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length,
         totalPower: items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length,
       }));
-    } else {
+    } else if (activeRange === '24h') {
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const filtered = data.energyData.filter(item => {
         const [date, time] = item.name.split('_');
@@ -161,8 +161,11 @@ const Dashboard = () => {
         refrigeratorPower: items.reduce((sum, i) => sum + Number(i.refrigeratorPower), 0) / items.length,
         totalPower: items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length,
       }));
+    } else {
+      // Default: return all data
+      return data.energyData;
     }
-  }, [data, view]);
+  };
   
   if (loading || !data) {
     return (
@@ -206,28 +209,12 @@ const Dashboard = () => {
           />
         </div>
         
-        {/* View toggle */}
-        <div className="flex gap-2 mb-2">
-          <button
-            className={`px-3 py-1 rounded ${view === '1hr' ? 'bg-primary text-white' : 'bg-muted'}`}
-            onClick={() => setView('1hr')}
-          >
-            1 Hour
-          </button>
-          <button
-            className={`px-3 py-1 rounded ${view === '24hr' ? 'bg-primary text-white' : 'bg-muted'}`}
-            onClick={() => setView('24hr')}
-          >
-            24 Hours
-          </button>
-        </div>
-        
         {/* Charts and Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
             <LineChart
               title="Device Power Consumption"
-              data={chartData}
+              data={data.energyData}
               lines={[
                 { key: 'acPower', color: '#3b82f6', name: 'AC' },
                 { key: 'fanPower', color: '#10b981', name: 'Fan' },
@@ -235,6 +222,7 @@ const Dashboard = () => {
                 { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator' },
                 { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
               ]}
+              getChartData={getChartData}
             />
             <div className="mt-2 text-sm text-card-foreground bg-card p-3 rounded-lg">
               <strong>Benchmarks:</strong> AC: 3.5kW | Fan: 0.5kW | Lighting: 0.4kW | Refrigerator: 0.3kW | Total: 4.7kW

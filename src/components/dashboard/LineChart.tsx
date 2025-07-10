@@ -27,6 +27,7 @@ interface LineChartProps {
   }>;
   timeRanges?: string[];
   loading?: boolean;
+  getChartData?: (activeRange: string) => DataPoint[];
 }
 
 const LineChart: React.FC<LineChartProps> = ({ 
@@ -34,7 +35,8 @@ const LineChart: React.FC<LineChartProps> = ({
   data,
   lines,
   timeRanges = ['1h', '24h', '7d'],
-  loading = false
+  loading = false,
+  getChartData
 }) => {
   const [activeRange, setActiveRange] = useState(timeRanges[0]);
   const [chartData, setChartData] = useState<DataPoint[]>([]);
@@ -61,28 +63,23 @@ const LineChart: React.FC<LineChartProps> = ({
     return name;
   };
 
-  // Simulate fetching different data based on time range
+  // Fetch and group data based on time range
   useEffect(() => {
-    const fetchData = () => {
-      // In a real app, you'd fetch data here based on the activeRange
-      // For demo purposes, we'll just modify the existing data
-      
-      // Simulate loading
-      setTimeout(() => {
-        if (activeRange === '1h') {
-          setChartData(data.slice(-6));
-        } else if (activeRange === '24h') {
-          setChartData(data.slice(-6));
-        } else if (activeRange === '7d') {
-          setChartData(data.slice(-7));
-        } else {
-          setChartData(data);
-        }
-      }, 500);
-    };
-    
-    fetchData();
-  }, [activeRange, data]);
+    if (getChartData) {
+      setChartData(getChartData(activeRange));
+    } else {
+      // Default: slice data
+      if (activeRange === '1h') {
+        setChartData(data.slice(-6));
+      } else if (activeRange === '24h') {
+        setChartData(data.slice(-6));
+      } else if (activeRange === '7d') {
+        setChartData(data.slice(-7));
+      } else {
+        setChartData(data);
+      }
+    }
+  }, [activeRange, data, getChartData]);
 
   return (
     <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
