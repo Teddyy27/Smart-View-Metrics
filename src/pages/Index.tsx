@@ -144,10 +144,22 @@ const Dashboard = () => {
   
   // Prepare chart data based on activeRange from LineChart
   const getChartData = (activeRange: string) => {
-    if (!data?.energyData) return [];
-    const now = new Date();
+    if (!data?.energyData || data.energyData.length === 0) return [];
+    // Robustly find the latest timestamp in your data
+    const latestItem = data.energyData.reduce((latest, item) => {
+      const [date, time] = item.name.split('_');
+      const dt = new Date(`${date}T${time.replace('-', ':')}:00`);
+      if (!latest) return item;
+      const [latestDate, latestTime] = latest.name.split('_');
+      const latestDt = new Date(`${latestDate}T${latestTime.replace('-', ':')}:00`);
+      return dt > latestDt ? item : latest;
+    }, null);
+    if (!latestItem) return [];
+    const [date, time] = latestItem.name.split('_');
+    const [h, m] = time.split('-');
+    const latestDate = new Date(`${date}T${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`);
     if (activeRange === '1h') {
-      const intervals = getLast6TenMinIntervals(now);
+      const intervals = getLast6TenMinIntervals(latestDate);
       const grouped: Record<string, any[]> = {};
       intervals.forEach(label => { grouped[label] = []; });
       data.energyData.forEach(item => {
@@ -168,7 +180,7 @@ const Dashboard = () => {
         };
       });
     } else if (activeRange === '24h') {
-      const intervals = getLast6FourHourIntervals(now);
+      const intervals = getLast6FourHourIntervals(latestDate);
       const grouped: Record<string, any[]> = {};
       intervals.forEach(label => { grouped[label] = []; });
       data.energyData.forEach(item => {
