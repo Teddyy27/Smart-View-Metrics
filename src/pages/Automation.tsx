@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { AddDeviceDialog } from '@/components/dashboard/AddDeviceDialog';
 import { toast } from '@/components/ui/use-toast';
+import { db } from '@/services/firebase';
+import { ref, set, onValue, off } from 'firebase/database';
 
 // Types for our devices
 interface Device {
@@ -34,6 +36,43 @@ const ROOM_NAME = "Living Room";
 const Automation = () => {
   const [devices, setDevices] = useState<Device[]>([]);
 
+  // Real-time listeners for device toggle state
+  useEffect(() => {
+    // Helper to update a device's isOn state in local state
+    const updateDeviceToggle = (type: Device['type'], value: boolean) => {
+      setDevices(prev => prev.map(device =>
+        device.type === type ? { ...device, isOn: value } : device
+      ));
+    };
+    // AC
+    const acRef = ref(db, 'ac/toggle');
+    onValue(acRef, (snap) => {
+      updateDeviceToggle('ac', !!snap.val());
+    });
+    // Fan
+    const fanRef = ref(db, 'fan_state');
+    onValue(fanRef, (snap) => {
+      updateDeviceToggle('fan', !!snap.val());
+    });
+    // Light
+    const lightRef = ref(db, 'lights/light_state');
+    onValue(lightRef, (snap) => {
+      updateDeviceToggle('light', !!snap.val());
+    });
+    // Refrigerator
+    const fridgeRef = ref(db, 'refrigerator/toggle');
+    onValue(fridgeRef, (snap) => {
+      updateDeviceToggle('geyser', !!snap.val()); // If you use 'refrigerator' as type, change here
+    });
+    // Cleanup listeners on unmount
+    return () => {
+      off(acRef);
+      off(fanRef);
+      off(lightRef);
+      off(fridgeRef);
+    };
+  }, []);
+
   // Handle adding a new device
   const handleAddDevice = (newDevice: Omit<Device, 'id' | 'lastUpdated'>) => {
     const deviceId = `${newDevice.type}-${Date.now()}`;
@@ -44,6 +83,11 @@ const Automation = () => {
     };
 
     setDevices([...devices, device]);
+    // Sync to Firebase
+    set(ref(db, `devices/${deviceId}`), {
+      ...device,
+      isOn: device.isOn ?? false,
+    });
     toast({
       title: "Device Added",
       description: `${newDevice.name} has been added to ${ROOM_NAME}.`,
@@ -65,11 +109,28 @@ const Automation = () => {
 
   // Handle device power toggle
   const toggleDevice = (deviceId: string) => {
-    setDevices(devices.map(device => 
-      device.id === deviceId 
-        ? { ...device, isOn: !device.isOn, lastUpdated: new Date().toISOString() }
-        : device
-    ));
+    const device = devices.find(d => d.id === deviceId);
+    if (!device) return;
+    // Update Firebase at the correct path
+    let path = '';
+    switch (device.type) {
+      case 'ac':
+        path = 'ac/toggle';
+        break;
+      case 'fan':
+        path = 'fan_state';
+        break;
+      case 'light':
+        path = 'lights/light_state';
+        break;
+      case 'geyser': // If you use 'refrigerator' as type, change here
+        path = 'refrigerator/toggle';
+        break;
+      default:
+        return;
+    }
+    set(ref(db, path), !device.isOn);
+    // Local state will update via real-time listener
   };
 
   // Handle value change

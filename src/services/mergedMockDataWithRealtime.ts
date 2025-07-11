@@ -170,8 +170,8 @@ export const generateMockData = (): DashboardData => {
 export default generateMockData;
 
 // --- Real-time Firebase hook for dashboard data ---
-import { db } from './firebase';
-import { ref, onValue, off } from 'firebase/database';
+// import { db } from './firebase';
+// import { ref, onValue, off } from 'firebase/database';
 import { useEffect, useState } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 
@@ -180,130 +180,32 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const rootRef = ref(db, '/');
-    const unsubscribe = onValue(rootRef, (snapshot) => {
-      const val = snapshot.val() || {};
-      console.log('RAW val:', val);
-      const acLogs = val.ac_power_logs || {};
-      const fanLogs = val.power_logs || {};
-      const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
-      console.log('acLogs:', acLogs);
-      console.log('fanLogs:', fanLogs);
-      console.log('lightLogs:', lightLogs);
-      // Collect all unique timestamps
-      const allTimestamps = Array.from(new Set([
-        ...Object.keys(acLogs),
-        ...Object.keys(fanLogs),
-        ...Object.keys(lightLogs)
-      ])).sort();
-      console.log('All Timestamps:', allTimestamps);
-      
-      const energyData = allTimestamps.map((ts) => {
-        const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;
-        const fanPower = fanLogs[ts] ? Number(fanLogs[ts]) : 0;
-        const lightPower = typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0;
-        const totalPower = acPower + fanPower + lightPower;
-        
-        return {
-          name: ts,
-          acPower,
-          fanPower,
-          lightPower,
-          totalPower,
-          acBenchmark: 2500, // 2.5kW typical AC usage
-          fanBenchmark: 500,  // 0.5kW typical fan usage
-          lightBenchmark: 300, // 0.3kW typical lighting usage
-          consumption: 0, // required by ChartDataPoint, not used
-          prediction: 0,  // required by ChartDataPoint, not used
-          benchmark: 0    // required by ChartDataPoint, not used
-        };
-      });
-      console.log('Energy Data for Chart:', energyData);
-      console.log('Sample Energy Data Point:', energyData[0]);
-      
-      // Calculate today's peak usage
-      const today = new Date();
-      const todayPeak = Math.max(...energyData
-        .filter(item => {
-          try {
-            const itemDate = new Date(item.name.split('_')[0]); // Extract date from timestamp
-            return itemDate.toDateString() === today.toDateString();
-          } catch {
-            return false; // Skip items with invalid date format
-          }
-        })
-        .map(item => item.totalPower)
-      );
-      
-      // Usage data (AC and Lighting)
-      const usageData = [
-        { name: 'AC', value: acLogs ? Number(Object.values(acLogs).reduce((a: any, b: any) => a + b, 0)) : 0, color: '#3b82f6' },
-        { name: 'Lighting', value: lightLogs ? Number(Object.values(lightLogs).reduce((a: any, b: any) => a + b, 0)) : 0, color: '#8b5cf6' },
-        { name: 'Other', value: 0, color: '#ef4444' }
-      ];
-      // Revenue data (mock for now)
-      const revenueData = [
-        { name: 'May', revenue: 0, expenses: 0, profit: 0 }
-      ];
-      // Alerts data
-      const alertsData = [];
-      if (val.fan_state === false) {
-        alertsData.push({
-          id: 1,
-          type: 'Warning',
-          system: 'AC',
-          location: 'Unknown',
-          message: 'Fan is off',
-          timestamp: new Date().toISOString(),
-          status: 'Active'
-        });
-      }
-      if (val.motion_detected === false) {
-        alertsData.push({
-          id: 2,
-          type: 'Info',
-          system: 'Lighting',
-          location: 'Unknown',
-          message: 'No motion detected',
-          timestamp: new Date().toISOString(),
-          status: 'Active'
-        });
-      }
-      setData({ stats: {
-        energyUsage: {
-          value: energyData.length > 0 ? `${(energyData[energyData.length - 1].totalPower / 1000).toFixed(2)} kW` : 'N/A',
-          change: 0
-        },
-        savings: {
-          value: '$0',
-          change: 0
-        },
-        efficiency: {
-          value: (() => {
-            if (energyData.length === 0) return 'N/A';
-            // Get last 24 hours of data
-            const now = new Date();
-            const last24h = energyData.filter(item => {
-              try {
-                const itemDate = new Date(item.name.split('_')[0]);
-                return now.getTime() - itemDate.getTime() <= 24 * 60 * 60 * 1000;
-              } catch {
-                return false;
-              }
-            });
-            const peak = Math.max(...last24h.map(item => item.totalPower));
-            return peak > 0 ? `${(peak / 1000).toFixed(2)} kW` : 'N/A';
-          })(),
-          change: 0
-        },
-        automationStatus: {
-          value: val.manual_fan_control === false ? 'Auto' : 'Manual',
-          change: 0
+    // const rootRef = ref(db, '/');
+    // const unsubscribe = onValue(rootRef, (snapshot) => {
+    //   // Real-time listener logic (DISABLED to reduce Firebase usage)
+    // });
+    // return () => off(rootRef, 'value', unsubscribe);
+
+    // Fetch data from the API route
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/dashboard-data');
+        if (!response.ok) {
+          throw new Error('Failed to fetch dashboard data');
         }
-      }, energyData, usageData, revenueData, alertsData });
-      setLoading(false);
-    });
-    return () => off(rootRef, 'value', unsubscribe);
+        const data: DashboardData = await response.json();
+        setData(data);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // Poll every 10 seconds
+    return () => clearInterval(interval);
   }, []);
 
   return { data, loading };
