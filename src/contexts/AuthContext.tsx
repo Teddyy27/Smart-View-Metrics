@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '@/services/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { trackUserLogin, trackUserLogout } from '@/services/userActivityService';
+import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
@@ -26,6 +27,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch (error) {
             console.error('Error tracking login:', error);
           }
+          // Show notification toast on login
+          const { dismiss } = toast({
+            title: 'System Status',
+            description: 'All devices are under control',
+          });
+          setTimeout(() => dismiss(), 10000);
         }
       } catch (error) {
         console.error('Error in auth state change:', error);
