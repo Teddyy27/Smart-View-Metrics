@@ -1,7 +1,7 @@
 import React from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Bell } from 'lucide-react';
+import { Bell, Eye } from 'lucide-react';
 
 const Notification = () => (
   <Layout>
@@ -20,6 +20,30 @@ const Notification = () => (
           <CardContent>
             <div className="text-2xl font-bold">All devices are under control</div>
             <p className="text-xs text-muted-foreground mt-1">No issues detected</p>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Motion Detection</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">No motion detected</div>
+            <p className="text-xs text-muted-foreground mt-1">Security system active</p>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="mb-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Dashboard Updates</CardTitle>
+            <Bell className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Real-time updates only</div>
+            <p className="text-xs text-muted-foreground mt-1">System updates are shown on dashboard</p>
           </CardContent>
         </Card>
       </div>

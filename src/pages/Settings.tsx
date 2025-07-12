@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,27 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   User,
   Smartphone,
   Bell,
   Zap,
   RefreshCw,
-  Webhook,
   Trash2,
   Plus,
   Save,
@@ -24,20 +39,13 @@ import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-
-interface Device {
-  id: string;
-  name: string;
-  type: string;
-  status: 'online' | 'offline';
-  lastSync: string;
-}
+import { updateProfile } from 'firebase/auth';
+import { deviceTypes } from '@/services/deviceService';
+import { useDevices } from '@/hooks/useDevices';
 
 interface NotificationSetting {
   type: string;
-  email: boolean;
-  push: boolean;
-  sms: boolean;
+  enabled: boolean;
 }
 
 const settingsNavItems = [
@@ -46,7 +54,6 @@ const settingsNavItems = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'energy', label: 'Energy Alerts', icon: Zap },
   { id: 'sync', label: 'Data Sync', icon: RefreshCw },
-  { id: 'api', label: 'API Access', icon: Webhook },
 ];
 
 const SettingsPage = () => {
@@ -54,30 +61,36 @@ const SettingsPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('profile');
+  const { devices, addDevice, removeDevice } = useDevices();
+
+  // Profile form state
+  const [profileForm, setProfileForm] = useState({
+    displayName: user?.displayName || '',
+    email: user?.email || ''
+  });
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
 
   // Device Management State
-  const [devices, setDevices] = useState<Device[]>([
-    {
-      id: '1',
-      name: 'Smart Thermostat',
-      type: 'Temperature Control',
-      status: 'online',
-      lastSync: new Date().toISOString()
-    },
-    {
-      id: '2',
-      name: 'Energy Meter',
-      type: 'Power Monitor',
-      status: 'online',
-      lastSync: new Date().toISOString()
+  const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
+  const [newDevice, setNewDevice] = useState({
+    name: '',
+    type: ''
+  });
+
+  // Update profile form when user changes
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        displayName: user.displayName || '',
+        email: user.email || ''
+      });
     }
-  ]);
+  }, [user]);
 
   // Notification Settings State
   const [notifications, setNotifications] = useState<NotificationSetting[]>([
-    { type: 'Device Alerts', email: true, push: true, sms: false },
-    { type: 'Energy Reports', email: true, push: false, sms: false },
-    { type: 'System Updates', email: true, push: true, sms: false }
+    { type: 'Device Alerts', enabled: true },
+    { type: 'Energy Reports', enabled: false }
   ]);
 
   // Energy Alert Settings
@@ -95,27 +108,96 @@ const SettingsPage = () => {
     lastSync: new Date().toISOString()
   });
 
-  // API Integration Settings
-  const [apiSettings, setApiSettings] = useState({
-    apiKey: '********-****-****-****-************',
-    webhookUrl: '',
-    enableWebhook: false
-  });
-
   const handleDeviceRemove = (deviceId: string) => {
-    setDevices(devices.filter(device => device.id !== deviceId));
+    const success = removeDevice(deviceId);
+    if (success) {
+      toast({
+        title: "Device Removed",
+        description: "The device has been removed successfully."
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to remove device",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleAddDevice = () => {
+    if (!newDevice.name.trim() || !newDevice.type) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const device = addDevice(newDevice.name, newDevice.type);
+    setNewDevice({ name: '', type: '' });
+    setIsAddDeviceOpen(false);
+    
     toast({
-      title: "Device Removed",
-      description: "The device has been removed successfully."
+      title: "Device Added",
+      description: `${device.name} has been added successfully.`
     });
   };
 
-  const handleNotificationToggle = (type: string, channel: 'email' | 'push' | 'sms') => {
+  const handleNotificationToggle = (type: string) => {
     setNotifications(notifications.map(notification =>
       notification.type === type
-        ? { ...notification, [channel]: !notification[channel] }
+        ? { ...notification, enabled: !notification.enabled }
         : notification
     ));
+  };
+
+  const handleProfileChange = (field: string, value: string) => {
+    setProfileForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleProfileSave = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "No user logged in",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!profileForm.displayName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Display name cannot be empty",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsProfileSaving(true);
+    try {
+      // Update Firebase user profile
+      await updateProfile(user, {
+        displayName: profileForm.displayName.trim()
+      });
+
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProfileSaving(false);
+    }
   };
 
   const handleSaveSettings = () => {
@@ -138,12 +220,43 @@ const SettingsPage = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="displayName">Display Name</Label>
-                  <Input id="displayName" defaultValue={user?.displayName || ''} />
+                  <Input 
+                    id="displayName" 
+                    value={profileForm.displayName}
+                    onChange={(e) => handleProfileChange('displayName', e.target.value)}
+                    placeholder="Enter your display name"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" defaultValue={user?.email || ''} />
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={profileForm.email}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                 </div>
+              </div>
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleProfileSave}
+                  disabled={isProfileSaving}
+                  className="flex items-center gap-2"
+                >
+                  {isProfileSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save Profile
+                    </>
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -158,26 +271,81 @@ const SettingsPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {devices.map(device => (
-                  <div key={device.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">{device.name}</h3>
-                      <p className="text-sm text-muted-foreground">{device.type}</p>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
-                        {device.status}
-                      </Badge>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeviceRemove(device.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                {devices.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Smartphone className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No devices connected</h3>
+                    <p className="text-muted-foreground mb-4">Add your first device to get started</p>
                   </div>
-                ))}
-                <Button className="w-full">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add New Device
-                </Button>
+                ) : (
+                  devices.map(device => (
+                    <div key={device.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-medium">{device.name}</h3>
+                        <p className="text-sm text-muted-foreground">{deviceTypes.find(t => t.value === device.type)?.label || device.type}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
+                          {device.status}
+                        </Badge>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeviceRemove(device.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                <Dialog open={isAddDeviceOpen} onOpenChange={setIsAddDeviceOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add New Device
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add New Device</DialogTitle>
+                      <DialogDescription>
+                        Add a new device to your smart home system.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="device-name">Device Name</Label>
+                        <Input
+                          id="device-name"
+                          value={newDevice.name}
+                          onChange={(e) => setNewDevice({ ...newDevice, name: e.target.value })}
+                          placeholder="Enter device name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="device-type">Device Type</Label>
+                        <Select value={newDevice.type} onValueChange={(value) => setNewDevice({ ...newDevice, type: value })}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select device type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {deviceTypes.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsAddDeviceOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleAddDevice}>
+                        Add Device
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardContent>
           </Card>
@@ -188,39 +356,26 @@ const SettingsPage = () => {
           <Card>
             <CardHeader>
               <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose how you want to receive notifications</CardDescription>
+              <CardDescription>Choose which notifications you want to receive</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 {notifications.map(notification => (
-                  <div key={notification.type} className="space-y-4">
-                    <h3 className="font-medium">{notification.type}</h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={`${notification.type}-email`}>Email</Label>
-                        <Switch
-                          id={`${notification.type}-email`}
-                          checked={notification.email}
-                          onCheckedChange={() => handleNotificationToggle(notification.type, 'email')}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={`${notification.type}-push`}>Push</Label>
-                        <Switch
-                          id={`${notification.type}-push`}
-                          checked={notification.push}
-                          onCheckedChange={() => handleNotificationToggle(notification.type, 'push')}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={`${notification.type}-sms`}>SMS</Label>
-                        <Switch
-                          id={`${notification.type}-sms`}
-                          checked={notification.sms}
-                          onCheckedChange={() => handleNotificationToggle(notification.type, 'sms')}
-                        />
-                      </div>
+                  <div key={notification.type} className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor={`${notification.type}-toggle`}>{notification.type}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {notification.type === 'Device Alerts' 
+                          ? 'Get notified when devices go offline or have issues'
+                          : 'Receive daily energy consumption reports'
+                        }
+                      </p>
                     </div>
+                    <Switch
+                      id={`${notification.type}-toggle`}
+                      checked={notification.enabled}
+                      onCheckedChange={() => handleNotificationToggle(notification.type)}
+                    />
                   </div>
                 ))}
               </div>
@@ -316,44 +471,6 @@ const SettingsPage = () => {
           </Card>
         );
 
-      case 'api':
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>API Access & Integrations</CardTitle>
-              <CardDescription>Manage your API keys and external integrations</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="api-key">API Key</Label>
-                <div className="flex gap-2">
-                  <Input id="api-key" value={apiSettings.apiKey} readOnly />
-                  <Button variant="outline">Regenerate</Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="webhook-url">Webhook URL</Label>
-                <Input
-                  id="webhook-url"
-                  value={apiSettings.webhookUrl}
-                  onChange={(e) => setApiSettings({ ...apiSettings, webhookUrl: e.target.value })}
-                  placeholder="https://"
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Enable Webhook</Label>
-                  <p className="text-sm text-muted-foreground">Send real-time updates to your endpoint</p>
-                </div>
-                <Switch
-                  checked={apiSettings.enableWebhook}
-                  onCheckedChange={(checked) => setApiSettings({ ...apiSettings, enableWebhook: checked })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        );
-
       default:
         return null;
     }
@@ -396,15 +513,9 @@ const SettingsPage = () => {
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
           <div className="max-w-3xl mx-auto p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-2xl font-bold">{settingsNavItems.find(item => item.id === activeTab)?.label}</h1>
-                <p className="text-muted-foreground">Manage your settings and preferences</p>
-              </div>
-              <Button onClick={handleSaveSettings}>
-                <Save className="w-4 h-4 mr-2" />
-                Save Changes
-              </Button>
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold">{settingsNavItems.find(item => item.id === activeTab)?.label}</h1>
+              <p className="text-muted-foreground">Manage your settings and preferences</p>
             </div>
             {renderContent()}
           </div>

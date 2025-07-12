@@ -5,6 +5,24 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   Power, 
   Fan, 
@@ -13,18 +31,20 @@ import {
   Snowflake, 
   WifiIcon, 
   AlertTriangle,
-  Trash2
+  Trash2,
+  Plus
 } from 'lucide-react';
-import { AddDeviceDialog } from '@/components/dashboard/AddDeviceDialog';
 import { toast } from '@/components/ui/use-toast';
 import { db } from '@/services/firebase';
 import { ref, set, onValue, off } from 'firebase/database';
+import { useDevices } from '@/hooks/useDevices';
+import { deviceTypes } from '@/services/deviceService';
 
 // Types for our devices
-interface Device {
+interface AutomationDevice {
   id: string;
   name: string;
-  type: 'light' | 'fan' | 'ac' | 'geyser';
+  type: string;
   status: 'online' | 'offline';
   isOn: boolean;
   value?: number;
@@ -34,16 +54,37 @@ interface Device {
 const ROOM_NAME = "Living Room";
 
 const Automation = () => {
-  const [devices, setDevices] = useState<Device[]>([]);
+  const { devices, addDevice, removeDevice } = useDevices();
+  const [automationDevices, setAutomationDevices] = useState<AutomationDevice[]>([]);
+  const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
+  const [newDevice, setNewDevice] = useState({
+    name: '',
+    type: ''
+  });
+
+  // Convert devices from deviceService to AutomationDevice format
+  useEffect(() => {
+    const convertedDevices: AutomationDevice[] = devices.map(device => ({
+      id: device.id,
+      name: device.name,
+      type: device.type,
+      status: device.status,
+      isOn: false, // Default to off
+      value: undefined,
+      lastUpdated: device.lastSync
+    }));
+    setAutomationDevices(convertedDevices);
+  }, [devices]);
 
   // Real-time listeners for device toggle state
   useEffect(() => {
     // Helper to update a device's isOn state in local state
-    const updateDeviceToggle = (type: Device['type'], value: boolean) => {
-      setDevices(prev => prev.map(device =>
+    const updateDeviceToggle = (type: string, value: boolean) => {
+      setAutomationDevices(prev => prev.map(device =>
         device.type === type ? { ...device, isOn: value } : device
       ));
     };
+
     // AC
     const acRef = ref(db, 'ac/toggle');
     onValue(acRef, (snap) => {
@@ -62,8 +103,9 @@ const Automation = () => {
     // Refrigerator
     const fridgeRef = ref(db, 'refrigerator/toggle');
     onValue(fridgeRef, (snap) => {
-      updateDeviceToggle('geyser', !!snap.val()); // If you use 'refrigerator' as type, change here
+      updateDeviceToggle('refrigerator', !!snap.val());
     });
+
     // Cleanup listeners on unmount
     return () => {
       off(acRef);
@@ -74,43 +116,52 @@ const Automation = () => {
   }, []);
 
   // Handle adding a new device
-  const handleAddDevice = (newDevice: Omit<Device, 'id' | 'lastUpdated'>) => {
-    const deviceId = `${newDevice.type}-${Date.now()}`;
-    const device: Device = {
-      ...newDevice,
-      id: deviceId,
-      lastUpdated: new Date().toISOString(),
-    };
+  const handleAddDevice = () => {
+    if (!newDevice.name.trim() || !newDevice.type) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    setDevices([...devices, device]);
-    // Sync to Firebase
-    set(ref(db, `devices/${deviceId}`), {
-      ...device,
-      isOn: device.isOn ?? false,
-    });
+    const device = addDevice(newDevice.name, newDevice.type);
+    setNewDevice({ name: '', type: '' });
+    setIsAddDeviceOpen(false);
+    
     toast({
       title: "Device Added",
-      description: `${newDevice.name} has been added to ${ROOM_NAME}.`,
+      description: `${device.name} has been added to ${ROOM_NAME}.`
     });
   };
 
   // Handle removing a device
   const handleRemoveDevice = (deviceId: string) => {
-    const device = devices.find(d => d.id === deviceId);
+    const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
 
-    setDevices(devices.filter(d => d.id !== deviceId));
-    toast({
-      title: "Device Removed",
-      description: `${device.name} has been removed from ${ROOM_NAME}.`,
-      variant: "destructive"
-    });
+    const success = removeDevice(deviceId);
+    if (success) {
+      toast({
+        title: "Device Removed",
+        description: `${device.name} has been removed from ${ROOM_NAME}.`,
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to remove device",
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle device power toggle
   const toggleDevice = (deviceId: string) => {
-    const device = devices.find(d => d.id === deviceId);
+    const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
+    
     // Update Firebase at the correct path
     let path = '';
     switch (device.type) {
@@ -123,7 +174,7 @@ const Automation = () => {
       case 'light':
         path = 'lights/light_state';
         break;
-      case 'geyser': // If you use 'refrigerator' as type, change here
+      case 'refrigerator':
         path = 'refrigerator/toggle';
         break;
       default:
@@ -135,7 +186,7 @@ const Automation = () => {
 
   // Handle value change
   const updateDeviceValue = (deviceId: string, newValue: number) => {
-    setDevices(devices.map(device =>
+    setAutomationDevices(automationDevices.map(device =>
       device.id === deviceId
         ? { ...device, value: newValue, lastUpdated: new Date().toISOString() }
         : device
@@ -143,7 +194,7 @@ const Automation = () => {
   };
 
   // Get icon for device type
-  const getDeviceIcon = (type: Device['type']) => {
+  const getDeviceIcon = (type: string) => {
     switch (type) {
       case 'light':
         return <Lightbulb className="h-6 w-6" />;
@@ -151,7 +202,7 @@ const Automation = () => {
         return <Snowflake className="h-6 w-6" />;
       case 'fan':
         return <Fan className="h-6 w-6" />;
-      case 'geyser':
+      case 'refrigerator':
         return <Droplets className="h-6 w-6" />;
       default:
         return <Power className="h-6 w-6" />;
@@ -159,11 +210,11 @@ const Automation = () => {
   };
 
   // Get value label based on device type
-  const getValueLabel = (device: Device) => {
+  const getValueLabel = (device: AutomationDevice) => {
     if (!device.value) return '';
     switch (device.type) {
       case 'ac':
-      case 'geyser':
+      case 'refrigerator':
         return `${device.value}°C`;
       case 'fan':
       case 'light':
@@ -187,7 +238,57 @@ const Automation = () => {
             <h1 className="text-2xl font-bold">{ROOM_NAME} Automation</h1>
             <p className="text-muted-foreground">Manage your room devices</p>
           </div>
-          <AddDeviceDialog onAddDevice={handleAddDevice} />
+          
+          <Dialog open={isAddDeviceOpen} onOpenChange={setIsAddDeviceOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Device
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Device</DialogTitle>
+                <DialogDescription>
+                  Add a new device to your automation system.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="device-name">Device Name</Label>
+                  <Input
+                    id="device-name"
+                    value={newDevice.name}
+                    onChange={(e) => setNewDevice({ ...newDevice, name: e.target.value })}
+                    placeholder="Enter device name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="device-type">Device Type</Label>
+                  <Select value={newDevice.type} onValueChange={(value) => setNewDevice({ ...newDevice, type: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select device type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deviceTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDeviceOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddDevice}>
+                  Add Device
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Status Overview */}
@@ -198,9 +299,9 @@ const Automation = () => {
               <WifiIcon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{devices.length}</div>
+              <div className="text-2xl font-bold">{automationDevices.length}</div>
               <p className="text-xs text-muted-foreground">
-                {devices.filter(d => d.status === 'online').length} online
+                {automationDevices.filter(d => d.status === 'online').length} online
               </p>
             </CardContent>
           </Card>
@@ -210,7 +311,7 @@ const Automation = () => {
               <Power className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{devices.filter(d => d.isOn).length}</div>
+              <div className="text-2xl font-bold">{automationDevices.filter(d => d.isOn).length}</div>
               <p className="text-xs text-muted-foreground">
                 Currently running
               </p>
@@ -232,70 +333,78 @@ const Automation = () => {
 
         {/* Devices Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.map(device => (
-            <Card key={device.id} className={device.status === 'offline' ? 'opacity-60' : ''}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex flex-col space-y-1">
-                  <CardTitle className="text-sm font-medium">{device.name}</CardTitle>
-                  <CardDescription>{ROOM_NAME}</CardDescription>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
-                    {device.status}
-                  </Badge>
-                  {getDeviceIcon(device.type)}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Power</span>
-                    <Switch
-                      checked={device.isOn}
-                      onCheckedChange={() => toggleDevice(device.id)}
-                      disabled={device.status === 'offline'}
-                    />
+          {automationDevices.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <Power className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No devices connected</h3>
+              <p className="text-muted-foreground mb-4">Add your first device to get started with automation</p>
+            </div>
+          ) : (
+            automationDevices.map(device => (
+              <Card key={device.id} className={device.status === 'offline' ? 'opacity-60' : ''}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex flex-col space-y-1">
+                    <CardTitle className="text-sm font-medium">{device.name}</CardTitle>
+                    <CardDescription>{ROOM_NAME}</CardDescription>
                   </div>
-
-                  {device.value !== undefined && device.isOn && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm font-medium">
-                          {device.type === 'light' && 'Brightness'}
-                          {device.type === 'ac' && 'Temperature'}
-                          {device.type === 'fan' && 'Speed'}
-                          {device.type === 'geyser' && 'Temperature'}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {getValueLabel(device)}
-                        </span>
-                      </div>
-                      <Slider
-                        value={[device.value]}
-                        min={device.type === 'ac' ? 16 : device.type === 'geyser' ? 35 : 0}
-                        max={device.type === 'ac' ? 30 : device.type === 'geyser' ? 60 : 100}
-                        step={device.type === 'ac' || device.type === 'geyser' ? 1 : 5}
-                        onValueChange={([value]) => updateDeviceValue(device.id, value)}
-                        disabled={!device.isOn || device.status === 'offline'}
+                  <div className="flex items-center space-x-2">
+                    <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
+                      {device.status}
+                    </Badge>
+                    {getDeviceIcon(device.type)}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Power</span>
+                      <Switch
+                        checked={device.isOn}
+                        onCheckedChange={() => toggleDevice(device.id)}
+                        disabled={device.status === 'offline'}
                       />
                     </div>
-                  )}
 
-                  <div className="flex justify-between items-center text-xs text-muted-foreground">
-                    <span>Last updated: {formatLastUpdated(device.lastUpdated)}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-100"
-                      onClick={() => handleRemoveDevice(device.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {device.value !== undefined && device.isOn && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">
+                            {device.type === 'light' && 'Brightness'}
+                            {device.type === 'ac' && 'Temperature'}
+                            {device.type === 'fan' && 'Speed'}
+                            {device.type === 'refrigerator' && 'Temperature'}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {getValueLabel(device)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[device.value]}
+                          min={device.type === 'ac' ? 16 : device.type === 'refrigerator' ? 35 : 0}
+                          max={device.type === 'ac' ? 30 : device.type === 'refrigerator' ? 60 : 100}
+                          step={device.type === 'ac' || device.type === 'refrigerator' ? 1 : 5}
+                          onValueChange={([value]) => updateDeviceValue(device.id, value)}
+                          disabled={!device.isOn || device.status === 'offline'}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>Last updated: {formatLastUpdated(device.lastUpdated)}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-100"
+                        onClick={() => handleRemoveDevice(device.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       </div>
     </Layout>
