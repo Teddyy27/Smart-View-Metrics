@@ -73,11 +73,11 @@ const LineChart: React.FC<LineChartProps> = ({
         setChartData(data.slice(-6));
       } else if (activeRange === '24h') {
         setChartData(data.slice(-6));
-      } else if (activeRange === '7d') {
-        setChartData(data.slice(-7));
-      } else {
-        setChartData(data);
-      }
+        } else if (activeRange === '7d') {
+          setChartData(data.slice(-7));
+        } else {
+          setChartData(data);
+        }
     }
   }, [activeRange, data, getChartData]);
 

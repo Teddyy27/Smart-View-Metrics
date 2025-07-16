@@ -3,6 +3,8 @@ import { auth } from '@/services/firebase';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { trackUserLogin, trackUserLogout } from '@/services/userActivityService';
 import { toast } from '@/hooks/use-toast';
+import { ref as dbRef, set as dbSet } from 'firebase/database';
+import { db } from '@/services/firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -26,6 +28,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await trackUserLogin(user);
           } catch (error) {
             console.error('Error tracking login:', error);
+          }
+          // Save user info to Realtime Database for Users page
+          try {
+            await dbSet(dbRef(db, `users/${user.uid}`), {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || '',
+              photoURL: user.photoURL || '',
+              lastLogin: new Date().toISOString(),
+            });
+          } catch (error) {
+            console.error('Error saving user info to DB:', error);
           }
           // Show notification toast on login
           const { dismiss } = toast({

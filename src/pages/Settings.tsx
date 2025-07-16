@@ -108,8 +108,8 @@ const SettingsPage = () => {
     lastSync: new Date().toISOString()
   });
 
-  const handleDeviceRemove = (deviceId: string) => {
-    const success = removeDevice(deviceId);
+  const handleDeviceRemove = async (deviceId: string) => {
+    const success = await removeDevice(deviceId);
     if (success) {
       toast({
         title: "Device Removed",
@@ -124,7 +124,7 @@ const SettingsPage = () => {
     }
   };
 
-  const handleAddDevice = () => {
+  const handleAddDevice = async () => {
     if (!newDevice.name.trim() || !newDevice.type) {
       toast({
         title: "Validation Error",
@@ -134,7 +134,7 @@ const SettingsPage = () => {
       return;
     }
 
-    const device = addDevice(newDevice.name, newDevice.type);
+    const device = await addDevice(newDevice.name, newDevice.type);
     setNewDevice({ name: '', type: '' });
     setIsAddDeviceOpen(false);
     

@@ -15,16 +15,29 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserData } from '@/hooks/useUserData';
+import { getDatabase, ref as dbRef, onValue } from 'firebase/database';
 
 const UsersPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const { data, loading, trackPageAccess } = useUserData();
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Track page access when component mounts
   useEffect(() => {
-    trackPageAccess('Users Management');
-  }, [trackPageAccess]);
+    const db = getDatabase();
+    const usersRef = dbRef(db, 'users');
+    const unsubscribe = onValue(usersRef, (snapshot) => {
+      const val = snapshot.val();
+      if (val) {
+        setUsers(Object.values(val));
+      } else {
+        setUsers([]);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const getInitials = (name: string) => {
     return name
@@ -54,9 +67,9 @@ const UsersPage = () => {
     }
   };
 
-  const filteredUsers = data.allUsers.filter(dashboardUser => 
-    dashboardUser.userName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    dashboardUser.userEmail.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredUsers = users.filter(user =>
+    (user.displayName && user.displayName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   if (loading) {
@@ -86,58 +99,50 @@ const UsersPage = () => {
               Users who have accessed the smart home dashboard
             </p>
           </div>
-          {/* Removed Add User button */}
+          <div>
+            <Input
+              type="text"
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-64"
+            />
+          </div>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UsersIcon className="h-5 w-5" />
-              Users ({filteredUsers.length})
+              Users ({users.length})
             </CardTitle>
             <CardDescription>People with access to your smart home dashboard</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {filteredUsers.length === 0 ? (
+              {users.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground flex flex-col items-center gap-2">
                   <p>No users found</p>
                   <span className="text-xs">Invite users by sharing the dashboard link or by enabling user registration in settings.</span>
                 </div>
               ) : (
-                filteredUsers.map((dashboardUser) => (
-                  <div key={dashboardUser.userId} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">
+                users.map((user) => (
+                  <div key={user.uid} className="flex flex-col md:flex-row md:items-center justify-between p-4 border rounded-lg gap-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback>{getInitials(dashboardUser.userName)}</AvatarFallback>
+                        <AvatarImage src={user.photoURL} alt={user.displayName} />
+                        <AvatarFallback>{getInitials(user.displayName || user.email)}</AvatarFallback>
                       </Avatar>
                       <div>
-                        <h3 className="font-medium">{dashboardUser.userName}</h3>
-                        <p className="text-sm text-muted-foreground">{dashboardUser.userEmail}</p>
+                        <h3 className="font-medium">{user.displayName || user.email}</h3>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
                         <div className="flex gap-2 mt-1">
-                          <Badge className="bg-blue-500">
-                            User
-                          </Badge>
+                          <Badge className="bg-blue-500">User</Badge>
                           <Badge variant="outline" className="flex items-center">
                             <Clock className="w-3 h-3 mr-1" />
-                            {formatDate(dashboardUser.lastActivity)}
+                            {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'N/A'}
                           </Badge>
                         </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col md:flex-row md:items-center gap-4">
-                      <div className="text-sm">
-                        <span className="text-muted-foreground font-medium">Dashboards: </span>
-                        <span>{dashboardUser.dashboards.join(', ')}</span>
-                      </div>
-                      <div className="text-sm">
-                        <span className="text-muted-foreground font-medium">Logins: </span>
-                        <span>{dashboardUser.totalLogins}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">Edit</Button>
-                        <Button size="sm" variant="destructive">Remove</Button>
                       </div>
                     </div>
                   </div>
@@ -158,18 +163,9 @@ const UsersPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {data.activities.slice(0, 5).map((activity) => (
-                  <div key={activity.id} className="flex items-start justify-between p-3 border rounded-lg">
-                    <div>
-                      <h3 className="font-medium">{activity.userName}</h3>
-                      <p className="text-sm text-muted-foreground">{activity.action}</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{formatDate(activity.timestamp)}</p>
-                  </div>
-                ))}
-                {data.activities.length === 0 && (
-                  <p className="text-center py-4 text-muted-foreground">No recent activity</p>
-                )}
+                {/* This section will need to be updated to fetch activities from the database */}
+                {/* For now, it will show a placeholder or be removed if not directly applicable */}
+                <p className="text-center py-4 text-muted-foreground">Recent activity data not available from Realtime Database.</p>
               </div>
             </CardContent>
           </Card>
@@ -189,21 +185,21 @@ const UsersPage = () => {
                     <h3 className="font-medium">Dashboard</h3>
                     <p className="text-sm text-muted-foreground">Main dashboard access</p>
                   </div>
-                  <Badge>{data.allUsers.filter(u => u.dashboards.includes('Dashboard')).length} Users</Badge>
+                  <Badge>{users.filter(u => u.dashboards && u.dashboards.includes('Dashboard')).length} Users</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
                     <h3 className="font-medium">Analytics</h3>
                     <p className="text-sm text-muted-foreground">Analytics and reports</p>
                   </div>
-                  <Badge>{data.allUsers.filter(u => u.dashboards.includes('Analytics')).length} Users</Badge>
+                  <Badge>{users.filter(u => u.dashboards && u.dashboards.includes('Analytics')).length} Users</Badge>
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
                     <h3 className="font-medium">User Profile</h3>
                     <p className="text-sm text-muted-foreground">User management</p>
                   </div>
-                  <Badge>{data.allUsers.filter(u => u.dashboards.includes('User Profile')).length} Users</Badge>
+                  <Badge>{users.filter(u => u.dashboards && u.dashboards.includes('User Profile')).length} Users</Badge>
                 </div>
               </div>
             </CardContent>

@@ -116,7 +116,7 @@ const Automation = () => {
   }, []);
 
   // Handle adding a new device
-  const handleAddDevice = () => {
+  const handleAddDevice = async () => {
     if (!newDevice.name.trim() || !newDevice.type) {
       toast({
         title: "Validation Error",
@@ -126,7 +126,7 @@ const Automation = () => {
       return;
     }
 
-    const device = addDevice(newDevice.name, newDevice.type);
+    const device = await addDevice(newDevice.name, newDevice.type);
     setNewDevice({ name: '', type: '' });
     setIsAddDeviceOpen(false);
     
@@ -137,11 +137,11 @@ const Automation = () => {
   };
 
   // Handle removing a device
-  const handleRemoveDevice = (deviceId: string) => {
+  const handleRemoveDevice = async (deviceId: string) => {
     const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
 
-    const success = removeDevice(deviceId);
+    const success = await removeDevice(deviceId);
     if (success) {
       toast({
         title: "Device Removed",

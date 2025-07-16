@@ -240,47 +240,6 @@ const UserPage = () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Login History */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Login History
-              </CardTitle>
-              <CardDescription>Your recent login sessions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {!data.loginHistory || data.loginHistory.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">No login history yet</p>
-                    <p className="text-sm text-muted-foreground">Your login sessions will appear here</p>
-                  </div>
-                ) : (
-                  data.loginHistory.slice(0, 10).map((login) => (
-                    <div key={login.id} className="flex items-start justify-between p-3 border rounded-lg">
-                      <div className="flex-1">
-                        <h3 className="font-medium">Login Session</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(login.loginTime)}
-                        </p>
-                        {login.sessionDuration && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Duration: {formatDuration(login.sessionDuration)}
-                          </p>
-                        )}
-                      </div>
-                      <Badge variant="outline" className="ml-4">
-                        {login.logoutTime ? 'Completed' : 'Active'}
-                      </Badge>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Dashboard Access History */}

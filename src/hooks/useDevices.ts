@@ -14,12 +14,12 @@ export const useDevices = () => {
     return unsubscribe;
   }, []);
 
-  const addDevice = (name: string, type: string) => {
-    return deviceService.addDevice(name, type);
+  const addDevice = async (name: string, type: string) => {
+    return await deviceService.addDevice(name, type);
   };
 
-  const removeDevice = (deviceId: string) => {
-    return deviceService.removeDevice(deviceId);
+  const removeDevice = async (deviceId: string) => {
+    return await deviceService.removeDevice(deviceId);
   };
 
   const updateDeviceStatus = (deviceId: string, status: 'online' | 'offline') => {

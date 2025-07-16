@@ -251,7 +251,7 @@ const Dashboard = () => {
         {/* Charts and Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            <LineChart
+            <LineChart 
               title="Device Power Consumption"
               data={data.energyData}
               lines={[
@@ -272,13 +272,13 @@ const Dashboard = () => {
               title="Device Usage (kWh)"
               data={
                 [
-                  ...data.usageData.map(item => ({
-                    name: item.name,
+                ...data.usageData.map(item => ({
+                  name: item.name,
                     usage: Number((Number(item.value) / 1000).toFixed(2))
-                  })),
-                  {
-                    name: 'Fan',
-                    usage: data.energyData && data.energyData.length > 0 
+                })),
+                {
+                  name: 'Fan',
+                  usage: data.energyData && data.energyData.length > 0 
                       ? Number((data.energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
                       : 0
                   },
@@ -286,8 +286,8 @@ const Dashboard = () => {
                     name: 'Refrigerator',
                     usage: data.energyData && data.energyData.length > 0 
                       ? Number((data.energyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
-                      : 0
-                  }
+                    : 0
+                }
                 ].sort((a, b) => b.usage - a.usage)
               }
               bars={[

@@ -1,3 +1,6 @@
+import { db } from './firebase';
+import { ref, set, remove } from 'firebase/database';
+
 export interface Device {
   id: string;
   name: string;
@@ -73,7 +76,7 @@ class DeviceService {
   }
 
   // Add a new device
-  addDevice(name: string, type: string): Device {
+  async addDevice(name: string, type: string): Promise<Device> {
     const device: Device = {
       id: Date.now().toString(),
       name: name.trim(),
@@ -84,16 +87,20 @@ class DeviceService {
 
     this.devices.push(device);
     this.saveDevices();
+    // Sync to Firebase
+    await set(ref(db, `devices/${device.id}`), device);
     return device;
   }
 
   // Remove a device
-  removeDevice(deviceId: string): boolean {
+  async removeDevice(deviceId: string): Promise<boolean> {
     const initialLength = this.devices.length;
     this.devices = this.devices.filter(device => device.id !== deviceId);
     
     if (this.devices.length !== initialLength) {
       this.saveDevices();
+      // Remove from Firebase
+      await remove(ref(db, `devices/${deviceId}`));
       return true;
     }
     return false;
