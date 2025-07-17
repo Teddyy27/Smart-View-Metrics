@@ -44,8 +44,8 @@ export const trackUserLogin = async (user: User, ipAddress?: string, userAgent?:
       userEmail: user.email || '',
       userName: user.displayName || user.email?.split('@')[0] || 'Unknown',
       loginTime: Date.now(),
-      ipAddress,
-      userAgent
+      ...(ipAddress ? { ipAddress } : {}),
+      ...(userAgent ? { userAgent } : {})
     };
 
     const loginRef = ref(db, 'user_activity/login_history');
