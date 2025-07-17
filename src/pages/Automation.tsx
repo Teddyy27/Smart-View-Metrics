@@ -59,7 +59,8 @@ const Automation = () => {
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
   const [newDevice, setNewDevice] = useState({
     name: '',
-    type: ''
+    type: '',
+    togglePath: ''
   });
 
   // Convert devices from deviceService to AutomationDevice format
@@ -76,44 +77,23 @@ const Automation = () => {
     setAutomationDevices(convertedDevices);
   }, [devices]);
 
-  // Real-time listeners for device toggle state
+  // Remove old real-time listeners for hardcoded device types
+  // Add real-time listeners for each device's toggle value
   useEffect(() => {
-    // Helper to update a device's isOn state in local state
-    const updateDeviceToggle = (type: string, value: boolean) => {
-      setAutomationDevices(prev => prev.map(device =>
-        device.type === type ? { ...device, isOn: value } : device
-      ));
-    };
-
-    // AC
-    const acRef = ref(db, 'ac/toggle');
-    onValue(acRef, (snap) => {
-      updateDeviceToggle('ac', !!snap.val());
+    const listeners: Array<() => void> = [];
+    automationDevices.forEach(device => {
+      const toggleRef = ref(db, device.togglePath);
+      const listener = onValue(toggleRef, (snap) => {
+        setAutomationDevices(prev => prev.map(d =>
+          d.id === device.id ? { ...d, isOn: !!snap.val() } : d
+        ));
+      });
+      listeners.push(() => off(toggleRef, 'value', listener));
     });
-    // Fan
-    const fanRef = ref(db, 'fan_state');
-    onValue(fanRef, (snap) => {
-      updateDeviceToggle('fan', !!snap.val());
-    });
-    // Light
-    const lightRef = ref(db, 'lights/light_state');
-    onValue(lightRef, (snap) => {
-      updateDeviceToggle('light', !!snap.val());
-    });
-    // Refrigerator
-    const fridgeRef = ref(db, 'refrigerator/toggle');
-    onValue(fridgeRef, (snap) => {
-      updateDeviceToggle('refrigerator', !!snap.val());
-    });
-
-    // Cleanup listeners on unmount
     return () => {
-      off(acRef);
-      off(fanRef);
-      off(lightRef);
-      off(fridgeRef);
+      listeners.forEach(unsub => unsub());
     };
-  }, []);
+  }, [automationDevices.length]);
 
   // Handle adding a new device
   const handleAddDevice = async () => {
@@ -126,8 +106,8 @@ const Automation = () => {
       return;
     }
 
-    const device = await addDevice(newDevice.name, newDevice.type);
-    setNewDevice({ name: '', type: '' });
+    const device = await addDevice(newDevice.name, newDevice.type, newDevice.togglePath || undefined);
+    setNewDevice({ name: '', type: '', togglePath: '' });
     setIsAddDeviceOpen(false);
     
     toast({
@@ -157,31 +137,11 @@ const Automation = () => {
     }
   };
 
-  // Handle device power toggle
+  // Update toggleDevice to use the new path
   const toggleDevice = (deviceId: string) => {
     const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
-    
-    // Update Firebase at the correct path
-    let path = '';
-    switch (device.type) {
-      case 'ac':
-        path = 'ac/toggle';
-        break;
-      case 'fan':
-        path = 'fan_state';
-        break;
-      case 'light':
-        path = 'lights/light_state';
-        break;
-      case 'refrigerator':
-        path = 'refrigerator/toggle';
-        break;
-      default:
-        return;
-    }
-    set(ref(db, path), !device.isOn);
-    // Local state will update via real-time listener
+    set(ref(db, device.togglePath), !device.isOn);
   };
 
   // Handle value change
@@ -277,6 +237,15 @@ const Automation = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="toggle-path">Toggle Path</Label>
+                  <Input
+                    id="toggle-path"
+                    value={newDevice.togglePath}
+                    onChange={e => setNewDevice({ ...newDevice, togglePath: e.target.value })}
+                    placeholder="/devices/{deviceId}/toggle (default)"
+                  />
                 </div>
               </div>
               <DialogFooter>

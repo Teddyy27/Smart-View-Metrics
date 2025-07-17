@@ -217,7 +217,15 @@ const Dashboard = () => {
       </Layout>
     );
   }
-  
+
+  // Add fallback values for missing data
+  const stats = data.stats || {};
+  const energyUsage = stats.energyUsage || { value: '0.00', change: 0 };
+  const efficiency = stats.efficiency || { value: '0.00', change: 0 };
+  const automationStatus = stats.automationStatus || { value: 'N/A', change: 0 };
+  const energyData = data.energyData || [];
+  const usageData = data.usageData || [];
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto">
@@ -230,20 +238,20 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <StatCard 
             title="Energy Usage"
-            value={data.stats.energyUsage.value}
-            change={data.stats.energyUsage.change}
+            value={energyUsage.value}
+            change={energyUsage.change}
             icon={<Bolt className="h-6 w-6" />}
           />
           <StatCard 
             title="Peak Usage"
-            value={data.stats.efficiency.value}
-            change={data.stats.efficiency.change}
+            value={efficiency.value}
+            change={efficiency.change}
             icon={<TrendingUp className="h-6 w-6" />}
           />
           <StatCard 
             title="Automation Status"
-            value={data.stats.automationStatus.value}
-            change={data.stats.automationStatus.change}
+            value={automationStatus.value}
+            change={automationStatus.change}
             icon={<Zap className="h-6 w-6" />}
           />
         </div>
@@ -253,7 +261,7 @@ const Dashboard = () => {
           <div className="lg:col-span-2">
             <LineChart 
               title="Device Power Consumption"
-              data={data.energyData}
+              data={energyData}
               lines={[
                 { key: 'acPower', color: '#3b82f6', name: 'AC' },
                 { key: 'fanPower', color: '#10b981', name: 'Fan' },
@@ -272,20 +280,20 @@ const Dashboard = () => {
               title="Device Usage (kWh)"
               data={
                 [
-                ...data.usageData.map(item => ({
+                ...usageData.map(item => ({
                   name: item.name,
                     usage: Number((Number(item.value) / 1000).toFixed(2))
                 })),
                 {
                   name: 'Fan',
-                  usage: data.energyData && data.energyData.length > 0 
-                      ? Number((data.energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
+                  usage: energyData && energyData.length > 0 
+                      ? Number((energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
                       : 0
                   },
                   {
                     name: 'Refrigerator',
-                    usage: data.energyData && data.energyData.length > 0 
-                      ? Number((data.energyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
+                    usage: energyData && energyData.length > 0 
+                      ? Number((energyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
                     : 0
                 }
                 ].sort((a, b) => b.usage - a.usage)
@@ -311,52 +319,52 @@ const Dashboard = () => {
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">AC</h4>
-                  <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].acPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].acPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-card-foreground">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].acPower) / 1000).toFixed(2) : '0.00'} kW
+                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].acPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].acPower) > 0 ? 'Running' : 'Idle'}
+                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].acPower) > 0 ? 'Running' : 'Idle'}
                 </p>
               </div>
               {/* Fan Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">Fan</h4>
-                  <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].fanPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].fanPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-card-foreground">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].fanPower) / 1000).toFixed(2) : '0.00'} kW
+                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].fanPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].fanPower) > 0 ? 'Running' : 'Idle'}
+                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].fanPower) > 0 ? 'Running' : 'Idle'}
                 </p>
               </div>
               {/* Lighting Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">Lighting</h4>
-                  <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].lightPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].lightPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-card-foreground">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].lightPower) / 1000).toFixed(2) : '0.00'} kW
+                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].lightPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].lightPower) > 0 ? 'On' : 'Off'}
+                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].lightPower) > 0 ? 'On' : 'Off'}
                 </p>
               </div>
               {/* Refrigerator Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">Refrigerator</h4>
-                  <div className={`w-3 h-3 rounded-full ${data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].refrigeratorPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].refrigeratorPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-card-foreground">
-                  {data.energyData && data.energyData.length > 0 ? (Number(data.energyData[data.energyData.length - 1].refrigeratorPower) / 1000).toFixed(2) : '0.00'} kW
+                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].refrigeratorPower) / 1000).toFixed(2) : '0.00'} kW
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {data.energyData && data.energyData.length > 0 && Number(data.energyData[data.energyData.length - 1].refrigeratorPower) > 0 ? 'Running' : 'Idle'}
+                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].refrigeratorPower) > 0 ? 'Running' : 'Idle'}
                 </p>
               </div>
             </div>
