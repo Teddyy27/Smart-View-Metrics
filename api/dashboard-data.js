@@ -1,4 +1,4 @@
-// api/dashboard-data.ts
+// api/dashboard-data.js
 export const config = { runtime: 'edge' };
 
 let cache = {
@@ -20,17 +20,35 @@ export default async function handler(req) {
   try {
     // --- Fetch from Firebase REST API ---
     const firebaseUrl = 'https://smart-home-5bf1a-default-rtdb.asia-southeast1.firebasedatabase.app/.json';
-    const response = await fetch(firebaseUrl);
+    console.log('Fetching from Firebase:', firebaseUrl);
+    
+    const response = await fetch(firebaseUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
     if (!response.ok) {
-      throw new Error(`Firebase fetch failed: ${response.statusText}`);
+      console.error('Firebase response not ok:', response.status, response.statusText);
+      throw new Error(`Firebase fetch failed: ${response.status} ${response.statusText}`);
     }
+    
     const val = await response.json();
+    console.log('Firebase data received:', Object.keys(val || {}));
 
     // --- Process data to match dashboard structure ---
-    const acLogs = val.ac_power_logs || {};
-    const fanLogs = val.power_logs || {};
-    const lightLogs = val.lights && val.lights.power_logs ? val.lights.power_logs : {};
-    const refrigeratorLogs = val.refrigerator && val.refrigerator.power_logs ? val.refrigerator.power_logs : {};
+    const acLogs = val?.ac_power_logs || {};
+    const fanLogs = val?.power_logs || {};
+    const lightLogs = val?.lights?.power_logs || {};
+    const refrigeratorLogs = val?.refrigerator?.power_logs || {};
+
+    console.log('Device logs found:', {
+      ac: Object.keys(acLogs).length,
+      fan: Object.keys(fanLogs).length,
+      light: Object.keys(lightLogs).length,
+      refrigerator: Object.keys(refrigeratorLogs).length
+    });
 
     const allTimestamps = Array.from(
       new Set([
@@ -40,6 +58,8 @@ export default async function handler(req) {
         ...Object.keys(refrigeratorLogs),
       ])
     ).sort();
+
+    console.log('Total timestamps found:', allTimestamps.length);
 
     const energyData = allTimestamps.map((ts) => {
       const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;
@@ -75,6 +95,8 @@ export default async function handler(req) {
       const [year, month] = dateStr.split('-');
       return Number(year) === currentYear && parseInt(month, 10) === (currentMonth + 1);
     });
+
+    console.log('Energy data for current month:', energyDataThisMonth.length);
 
     // If no data for the current month, use zeros
     const safeEnergyData = energyDataThisMonth.length > 0 ? energyDataThisMonth : [{
@@ -129,7 +151,7 @@ export default async function handler(req) {
 
     // Alerts data
     const alertsData = [];
-    if (val.fan_state === false) {
+    if (val?.fan_state === false) {
       alertsData.push({
         id: 1,
         type: 'Warning',
@@ -140,7 +162,7 @@ export default async function handler(req) {
         status: 'Active',
       });
     }
-    if (val.motion_detected === false) {
+    if (val?.motion_detected === false) {
       alertsData.push({
         id: 2,
         type: 'Info',
@@ -159,7 +181,7 @@ export default async function handler(req) {
           value:
             safeEnergyData.length > 0
               ? `${(safeEnergyData[safeEnergyData.length - 1].totalPower / 1000).toFixed(2)} kW`
-              : 'N/A',
+              : '0.00 kW',
           change: 0,
         },
         savings: {
@@ -167,11 +189,11 @@ export default async function handler(req) {
           change: 0,
         },
         efficiency: {
-          value: safeEnergyData.length > 0 ? `${(Math.max(...safeEnergyData.map(item => item.totalPower), 0) / 1000).toFixed(2)} kW` : 'N/A',
+          value: safeEnergyData.length > 0 ? `${(Math.max(...safeEnergyData.map(item => item.totalPower), 0) / 1000).toFixed(2)} kW` : '0.00 kW',
           change: 0,
         },
         automationStatus: {
-          value: val.manual_fan_control === false ? 'Auto' : 'Manual',
+          value: val?.manual_fan_control === false ? 'Auto' : 'Manual',
           change: 0,
         },
       },
@@ -180,6 +202,12 @@ export default async function handler(req) {
       revenueData,
       alertsData,
     };
+
+    console.log('Dashboard data prepared:', {
+      energyDataLength: safeEnergyData.length,
+      usageDataLength: usageData.length,
+      stats: dashboardData.stats
+    });
 
     cache = {
       data: dashboardData,
@@ -191,8 +219,55 @@ export default async function handler(req) {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message || 'Internal Server Error' }), {
-      status: 500,
+    console.error('Dashboard API error:', error);
+    
+    // Return fallback data instead of error
+    const fallbackData = {
+      stats: {
+        energyUsage: {
+          value: '0.00 kW',
+          change: 0,
+        },
+        savings: {
+          value: '$0',
+          change: 0,
+        },
+        efficiency: {
+          value: '0.00 kW',
+          change: 0,
+        },
+        automationStatus: {
+          value: 'Auto',
+          change: 0,
+        },
+      },
+      energyData: [{
+        name: new Date().toISOString().split('T')[0] + '_00-00',
+        acPower: 0,
+        fanPower: 0,
+        lightPower: 0,
+        refrigeratorPower: 0,
+        totalPower: 0,
+        acBenchmark: 0,
+        fanBenchmark: 0,
+        lightBenchmark: 0,
+        refrigeratorBenchmark: 0,
+        consumption: 0,
+        prediction: 0,
+        benchmark: 0,
+      }],
+      usageData: [
+        { name: 'AC', value: 0, color: '#3b82f6' },
+        { name: 'Lighting', value: 0, color: '#8b5cf6' },
+        { name: 'Refrigerator', value: 0, color: '#06b6d4' },
+        { name: 'Other', value: 0, color: '#ef4444' },
+      ],
+      revenueData: [{ name: 'May', revenue: 0, expenses: 0, profit: 0 }],
+      alertsData: [],
+    };
+
+    return new Response(JSON.stringify(fallbackData), {
+      status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
   }

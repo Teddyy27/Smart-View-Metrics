@@ -219,12 +219,36 @@ const Dashboard = () => {
   }
 
   // Add fallback values for missing data
-  const stats = data.stats || {};
-  const energyUsage = stats.energyUsage || { value: '0.00', change: 0 };
-  const efficiency = stats.efficiency || { value: '0.00', change: 0 };
-  const automationStatus = stats.automationStatus || { value: 'N/A', change: 0 };
-  const energyData = data.energyData || [];
-  const usageData = data.usageData || [];
+  const stats = data?.stats || {};
+  const energyUsage = stats.energyUsage || { value: '0.00 kW', change: 0 };
+  const efficiency = stats.efficiency || { value: '0.00 kW', change: 0 };
+  const automationStatus = stats.automationStatus || { value: 'Auto', change: 0 };
+  const energyData = data?.energyData || [];
+  const usageData = data?.usageData || [];
+
+  console.log('Dashboard data received:', {
+    stats,
+    energyDataLength: energyData.length,
+    usageDataLength: usageData.length
+  });
+
+  // Test Firebase connection
+  useEffect(() => {
+    const testFirebaseConnection = async () => {
+      try {
+        const response = await fetch('https://smart-home-5bf1a-default-rtdb.asia-southeast1.firebasedatabase.app/.json');
+        console.log('Firebase connection test:', response.status, response.ok);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Firebase data keys:', Object.keys(data || {}));
+        }
+      } catch (error) {
+        console.error('Firebase connection test failed:', error);
+      }
+    };
+    
+    testFirebaseConnection();
+  }, []);
 
   return (
     <Layout>

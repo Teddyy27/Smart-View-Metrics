@@ -92,6 +92,15 @@ const Analytics = () => {
     );
   }
 
+  // Add fallback values for missing data
+  const energyData = data?.energyData || [];
+  const usageData = data?.usageData || [];
+
+  console.log('Analytics data received:', {
+    energyDataLength: energyData.length,
+    usageDataLength: usageData.length
+  });
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto">
