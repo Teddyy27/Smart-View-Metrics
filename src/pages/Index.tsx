@@ -24,10 +24,23 @@ const Dashboard = () => {
   const energyData = data?.energyData || [];
   const usageData = data?.usageData || [];
 
+  // Get latest device power values safely (divide by 10 for conversion)
+  const getLatestDevicePower = (deviceKey: string) => {
+    if (!energyData || energyData.length === 0) return 0;
+    const latestData = energyData[energyData.length - 1];
+    return Number(latestData[deviceKey] || 0) / 10; // Divide by 10 for conversion
+  };
+
+  const acPower = getLatestDevicePower('acPower');
+  const fanPower = getLatestDevicePower('fanPower');
+  const lightPower = getLatestDevicePower('lightPower');
+  const refrigeratorPower = getLatestDevicePower('refrigeratorPower');
+
   console.log('Dashboard data received:', {
     stats,
     energyDataLength: energyData.length,
-    usageDataLength: usageData.length
+    usageDataLength: usageData.length,
+    devicePowers: { acPower, fanPower, lightPower, refrigeratorPower }
   });
 
   // Simple chart data function
@@ -117,10 +130,14 @@ const Dashboard = () => {
           <div>
             <BarChart
               title="Device Usage (kWh)"
-              data={usageData.map(item => ({
-                name: item.name,
-                usage: Number((Number(item.value) / 1000).toFixed(2))
-              }))}
+              data={usageData
+                .filter((item, index, self) => 
+                  index === self.findIndex(t => t.name === item.name)
+                )
+                .map(item => ({
+                  name: item.name,
+                  usage: Number((Number(item.value) / 10 / 60).toFixed(2))
+                }))}
               bars={[
                 {
                   key: 'usage',
@@ -142,37 +159,37 @@ const Dashboard = () => {
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">AC</h4>
-                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                  <div className={`w-3 h-3 rounded-full ${acPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">0.00 kW</p>
-                <p className="text-sm text-muted-foreground">Idle</p>
+                <p className="text-2xl font-bold text-card-foreground">{(acPower / 1000).toFixed(2)} kW</p>
+                <p className="text-sm text-muted-foreground">{acPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
               {/* Fan Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">Fan</h4>
-                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                  <div className={`w-3 h-3 rounded-full ${fanPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">0.00 kW</p>
-                <p className="text-sm text-muted-foreground">Idle</p>
+                <p className="text-2xl font-bold text-card-foreground">{(fanPower / 1000).toFixed(2)} kW</p>
+                <p className="text-sm text-muted-foreground">{fanPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
               {/* Lighting Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">Lighting</h4>
-                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                  <div className={`w-3 h-3 rounded-full ${lightPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">0.00 kW</p>
-                <p className="text-sm text-muted-foreground">Off</p>
+                <p className="text-2xl font-bold text-card-foreground">{(lightPower / 1000).toFixed(2)} kW</p>
+                <p className="text-sm text-muted-foreground">{lightPower > 0 ? 'On' : 'Off'}</p>
               </div>
               {/* Refrigerator Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-card-foreground">Refrigerator</h4>
-                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                  <div className={`w-3 h-3 rounded-full ${refrigeratorPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">0.00 kW</p>
-                <p className="text-sm text-muted-foreground">Idle</p>
+                <p className="text-2xl font-bold text-card-foreground">{(refrigeratorPower / 1000).toFixed(2)} kW</p>
+                <p className="text-sm text-muted-foreground">{refrigeratorPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
             </div>
           </div>
