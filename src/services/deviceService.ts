@@ -7,7 +7,9 @@ export interface Device {
   type: string;
   status: 'online' | 'offline';
   lastSync: string;
-  togglePath: string;
+  state: boolean;
+  value: number;
+  power: number;
 }
 
 export const deviceTypes = [
@@ -77,24 +79,23 @@ class DeviceService {
   }
 
   // Add a new device
-  async addDevice(name: string, type: string, togglePath?: string): Promise<Device> {
+  async addDevice(name: string, type: string): Promise<Device> {
     const id = Date.now().toString();
-    const defaultTogglePath = `/devices/${id}/toggle`;
     const device: Device = {
       id,
       name: name.trim(),
       type,
       status: 'online',
       lastSync: new Date().toISOString(),
-      togglePath: togglePath || defaultTogglePath
+      state: false,
+      value: 0,
+      power: 0
     };
 
     this.devices.push(device);
     this.saveDevices();
     // Sync to Firebase
     await set(ref(db, `devices/${device.id}`), device);
-    // Create toggle value for the device (default: off)
-    await set(ref(db, device.togglePath), false);
     return device;
   }
 

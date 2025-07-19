@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import { db } from '@/services/firebase';
-import { ref, set, onValue, off } from 'firebase/database';
+import { ref, set, onValue, off, get, ref as dbRef, set as dbSet } from 'firebase/database';
 import { useDevices } from '@/hooks/useDevices';
 import { deviceTypes } from '@/services/deviceService';
 
@@ -57,10 +57,10 @@ const Automation = () => {
   const { devices, addDevice, removeDevice } = useDevices();
   const [automationDevices, setAutomationDevices] = useState<AutomationDevice[]>([]);
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
+  // Remove togglePath from newDevice state
   const [newDevice, setNewDevice] = useState({
     name: '',
-    type: '',
-    togglePath: ''
+    type: ''
   });
 
   // Convert devices from deviceService to AutomationDevice format
@@ -70,25 +70,35 @@ const Automation = () => {
       name: device.name,
       type: device.type,
       status: device.status,
-      isOn: false, // Default to off
-      value: undefined,
+      isOn: device.state || false,
+      value: device.value,
       lastUpdated: device.lastSync
     }));
     setAutomationDevices(convertedDevices);
   }, [devices]);
 
-  // Remove old real-time listeners for hardcoded device types
-  // Add real-time listeners for each device's toggle value
+  // On mount, ensure all devices have a toggle value in Firebase
+  useEffect(() => {
+    automationDevices.forEach(async (device) => {
+      const toggleRef = dbRef(db, `devices/${device.id}/state`);
+      const snap = await get(toggleRef);
+      if (!snap.exists()) {
+        await dbSet(toggleRef, false);
+      }
+    });
+  }, [automationDevices]);
+
+  // Real-time listeners for each device's state
   useEffect(() => {
     const listeners: Array<() => void> = [];
     automationDevices.forEach(device => {
-      const toggleRef = ref(db, device.togglePath);
-      const listener = onValue(toggleRef, (snap) => {
+      const stateRef = ref(db, `devices/${device.id}/state`);
+      const listener = onValue(stateRef, (snap) => {
         setAutomationDevices(prev => prev.map(d =>
           d.id === device.id ? { ...d, isOn: !!snap.val() } : d
         ));
       });
-      listeners.push(() => off(toggleRef, 'value', listener));
+      listeners.push(() => off(stateRef, 'value', listener));
     });
     return () => {
       listeners.forEach(unsub => unsub());
@@ -105,11 +115,9 @@ const Automation = () => {
       });
       return;
     }
-
-    const device = await addDevice(newDevice.name, newDevice.type, newDevice.togglePath || undefined);
-    setNewDevice({ name: '', type: '', togglePath: '' });
+    const device = await addDevice(newDevice.name, newDevice.type);
+    setNewDevice({ name: '', type: '' });
     setIsAddDeviceOpen(false);
-    
     toast({
       title: "Device Added",
       description: `${device.name} has been added to ${ROOM_NAME}.`
@@ -141,7 +149,7 @@ const Automation = () => {
   const toggleDevice = (deviceId: string) => {
     const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
-    set(ref(db, device.togglePath), !device.isOn);
+    set(ref(db, `devices/${device.id}/state`), !device.isOn);
   };
 
   // Handle value change
@@ -329,9 +337,12 @@ const Automation = () => {
                       <span className="text-sm font-medium">Power</span>
                       <Switch
                         checked={device.isOn}
-                        onCheckedChange={() => toggleDevice(device.id)}
+                        onCheckedChange={checked => set(ref(db, `devices/${device.id}/state`), checked)}
                         disabled={device.status === 'offline'}
                       />
+                    </div>
+                    <div className="text-xs text-muted-foreground break-all">
+                      <strong>Toggle Path:</strong> {device.togglePath}
                     </div>
 
                     {device.value !== undefined && device.isOn && (
