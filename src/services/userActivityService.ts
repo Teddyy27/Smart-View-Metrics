@@ -37,23 +37,21 @@ export interface LoginHistory {
 }
 
 // Track user login
-export const trackUserLogin = async (user: User, ipAddress?: string, userAgent?: string) => {
+export const trackUserLogin = async (user: User) => {
   try {
     const loginData: Omit<LoginHistory, 'id'> = {
       userId: user.uid,
       userEmail: user.email || '',
       userName: user.displayName || user.email?.split('@')[0] || 'Unknown',
       loginTime: Date.now(),
-      ...(ipAddress ? { ipAddress } : {}),
-      ...(userAgent ? { userAgent } : {})
+      ipAddress: undefined, // Remove to avoid undefined property errors
+      userAgent: undefined, // Remove to avoid undefined property errors
+      location: 'Unknown'
     };
 
     const loginRef = ref(db, 'user_activity/login_history');
     const newLoginRef = push(loginRef);
     await set(newLoginRef, loginData);
-
-    // Also track as a general activity
-    await trackUserActivity(user, 'User Login', 'Dashboard', 'User logged into the system');
 
     console.log('User login tracked successfully');
   } catch (error) {
@@ -64,35 +62,19 @@ export const trackUserLogin = async (user: User, ipAddress?: string, userAgent?:
 // Track user logout
 export const trackUserLogout = async (user: User) => {
   try {
-    // Find the most recent login for this user
-    const loginHistoryRef = ref(db, 'user_activity/login_history');
-    const userLoginsQuery = query(
-      loginHistoryRef,
-      orderByChild('userId'),
-      limitToLast(1)
-    );
+    const logoutData: Omit<LoginHistory, 'id'> = {
+      userId: user.uid,
+      userEmail: user.email || '',
+      userName: user.displayName || user.email?.split('@')[0] || 'Unknown',
+      loginTime: Date.now(),
+      ipAddress: undefined,
+      userAgent: undefined,
+      location: 'Unknown'
+    };
 
-    const snapshot = await get(userLoginsQuery);
-    if (snapshot.exists()) {
-      const logins = snapshot.val();
-      const loginId = Object.keys(logins)[0];
-      const loginData = logins[loginId];
-
-      if (loginData && !loginData.logoutTime) {
-        const logoutTime = Date.now();
-        const sessionDuration = logoutTime - loginData.loginTime;
-
-        // Update the login record with logout info
-        await set(ref(db, `user_activity/login_history/${loginId}`), {
-          ...loginData,
-          logoutTime,
-          sessionDuration
-        });
-      }
-    }
-
-    // Track as activity
-    await trackUserActivity(user, 'User Logout', 'Dashboard', 'User logged out of the system');
+    const logoutRef = ref(db, 'user_activity/logout_history');
+    const newLogoutRef = push(logoutRef);
+    await set(newLogoutRef, logoutData);
 
     console.log('User logout tracked successfully');
   } catch (error) {
@@ -159,7 +141,7 @@ export const trackDashboardAccess = async (
 };
 
 // Get user login history
-export const getUserLoginHistory = async (userId?: string): Promise<LoginHistory[]> => {
+export const getUserLoginHistory = async (userId?: string, limit: number = 20): Promise<LoginHistory[]> => {
   try {
     const loginHistoryRef = ref(db, 'user_activity/login_history');
     const snapshot = await get(loginHistoryRef);
@@ -169,20 +151,25 @@ export const getUserLoginHistory = async (userId?: string): Promise<LoginHistory
     }
 
     const logins = snapshot.val();
-    const loginHistory: LoginHistory[] = Object.keys(logins).map(id => ({
+    const loginList: LoginHistory[] = Object.keys(logins).map(id => ({
       id,
       ...logins[id]
     }));
 
     // Filter by user if specified
     if (userId) {
-      return loginHistory.filter(login => login.userId === userId);
+      return loginList
+        .filter(login => login.userId === userId)
+        .sort((a, b) => b.loginTime - a.loginTime)
+        .slice(0, limit);
     }
 
-    // Sort by login time (newest first)
-    return loginHistory.sort((a, b) => b.loginTime - a.loginTime);
+    // Sort by timestamp (newest first) and limit
+    return loginList
+      .sort((a, b) => b.loginTime - a.loginTime)
+      .slice(0, limit);
   } catch (error) {
-    console.error('Error getting login history:', error);
+    console.error('Error getting user login history:', error);
     return [];
   }
 };

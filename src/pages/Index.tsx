@@ -144,9 +144,9 @@ const Dashboard = () => {
   
   // Prepare chart data based on activeRange from LineChart
   const getChartData = (activeRange: string) => {
-    if (!data?.energyData || data.energyData.length === 0) return [];
+    if (!safeEnergyData || safeEnergyData.length === 0) return [];
     // Robustly find the latest timestamp in your data
-    const latestItem = data.energyData.reduce((latest, item) => {
+    const latestItem = safeEnergyData.reduce((latest, item) => {
       const [date, time] = item.name.split('_');
       const dt = new Date(`${date}T${time.replace('-', ':')}:00`);
       if (!latest) return item;
@@ -162,7 +162,7 @@ const Dashboard = () => {
       const intervals = getLast6TenMinIntervals(latestDate);
       const grouped: Record<string, any[]> = {};
       intervals.forEach(label => { grouped[label] = []; });
-      data.energyData.forEach(item => {
+      safeEnergyData.forEach(item => {
         const [date, time] = item.name.split('_');
         const [h, m] = time.split('-');
         const itemLabel = `${h.padStart(2, '0')}:${(Math.floor(Number(m) / 10) * 10).toString().padStart(2, '0')}`;
@@ -179,11 +179,11 @@ const Dashboard = () => {
           totalPower: items.length ? items.reduce((sum, i) => sum + Number(i.totalPower), 0) / items.length : 0,
         };
       });
-    } else if (activeRange === '24h') {
+    } else if (activeRange === '4h') {
       const intervals = getLast6FourHourIntervals(latestDate);
       const grouped: Record<string, any[]> = {};
       intervals.forEach(label => { grouped[label] = []; });
-      data.energyData.forEach(item => {
+      safeEnergyData.forEach(item => {
         const [date, time] = item.name.split('_');
         const [h] = time.split('-');
         const itemLabel = `${(Math.floor(Number(h) / 4) * 4).toString().padStart(2, '0')}:00`;
@@ -202,7 +202,7 @@ const Dashboard = () => {
       });
     } else {
       // Default: return all data
-      return data.energyData;
+      return safeEnergyData;
     }
   };
   
@@ -249,6 +249,23 @@ const Dashboard = () => {
     
     testFirebaseConnection();
   }, []);
+
+  // Add error boundary to prevent React crashes
+  if (!data || !stats) {
+    return (
+      <Layout>
+        <div className="h-full flex items-center justify-center">
+          <div className="text-xl font-medium">
+            Loading dashboard data...
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Ensure all required data exists to prevent React errors
+  const safeEnergyData = Array.isArray(energyData) ? energyData : [];
+  const safeUsageData = Array.isArray(usageData) ? usageData : [];
 
   return (
     <Layout>
@@ -304,20 +321,20 @@ const Dashboard = () => {
               title="Device Usage (kWh)"
               data={
                 [
-                ...usageData.map(item => ({
+                ...safeUsageData.map(item => ({
                   name: item.name,
                     usage: Number((Number(item.value) / 1000).toFixed(2))
                 })),
                 {
                   name: 'Fan',
-                  usage: energyData && energyData.length > 0 
-                      ? Number((energyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
+                  usage: safeEnergyData && safeEnergyData.length > 0 
+                      ? Number((safeEnergyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
                       : 0
                   },
                   {
                     name: 'Refrigerator',
-                    usage: energyData && energyData.length > 0 
-                      ? Number((energyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
+                    usage: safeEnergyData && safeEnergyData.length > 0 
+                      ? Number((safeEnergyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
                     : 0
                 }
                 ].sort((a, b) => b.usage - a.usage)
