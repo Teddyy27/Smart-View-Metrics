@@ -39,13 +39,11 @@ export interface LoginHistory {
 // Track user login
 export const trackUserLogin = async (user: User) => {
   try {
-    const loginData: Omit<LoginHistory, 'id'> = {
+    const loginData = {
       userId: user.uid,
       userEmail: user.email || '',
       userName: user.displayName || user.email?.split('@')[0] || 'Unknown',
       loginTime: Date.now(),
-      ipAddress: undefined, // Remove to avoid undefined property errors
-      userAgent: undefined, // Remove to avoid undefined property errors
       location: 'Unknown'
     };
 
@@ -62,13 +60,11 @@ export const trackUserLogin = async (user: User) => {
 // Track user logout
 export const trackUserLogout = async (user: User) => {
   try {
-    const logoutData: Omit<LoginHistory, 'id'> = {
+    const logoutData = {
       userId: user.uid,
       userEmail: user.email || '',
       userName: user.displayName || user.email?.split('@')[0] || 'Unknown',
       loginTime: Date.now(),
-      ipAddress: undefined,
-      userAgent: undefined,
       location: 'Unknown'
     };
 

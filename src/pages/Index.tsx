@@ -54,7 +54,7 @@ function getLast6FourHourIntervals(now = new Date()) {
 }
 
 const Dashboard = () => {
-  const { data, error, isLoading: loading } = useSWR('/api/dashboard-data', fetcher, {
+  const { data, isLoading: loading } = useSWR('/api/dashboard-data', fetcher, {
     dedupingInterval: 5 * 60 * 1000, // 5 minutes
     revalidateOnFocus: false,
   });
@@ -267,153 +267,166 @@ const Dashboard = () => {
   const safeEnergyData = Array.isArray(energyData) ? energyData : [];
   const safeUsageData = Array.isArray(usageData) ? usageData : [];
 
-  return (
-    <Layout>
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome to your automation control center</p>
-        </div>
-        
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <StatCard 
-            title="Energy Usage"
-            value={energyUsage.value}
-            change={energyUsage.change}
-            icon={<Bolt className="h-6 w-6" />}
-          />
-          <StatCard 
-            title="Peak Usage"
-            value={efficiency.value}
-            change={efficiency.change}
-            icon={<TrendingUp className="h-6 w-6" />}
-          />
-          <StatCard 
-            title="Automation Status"
-            value={automationStatus.value}
-            change={automationStatus.change}
-            icon={<Zap className="h-6 w-6" />}
-          />
-        </div>
-        
-        {/* Charts and Alerts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2">
-            <LineChart 
-              title="Device Power Consumption"
-              data={energyData}
-              lines={[
-                { key: 'acPower', color: '#3b82f6', name: 'AC' },
-                { key: 'fanPower', color: '#10b981', name: 'Fan' },
-                { key: 'lightPower', color: '#8b5cf6', name: 'Light' },
-                { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator' },
-                { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
-              ]}
-              getChartData={getChartData}
-            />
-            <div className="mt-2 text-sm text-card-foreground bg-card p-3 rounded-lg">
-              <strong>Benchmarks:</strong> AC: 3.5kW | Fan: 0.5kW | Lighting: 0.4kW | Refrigerator: 0.3kW | Total: 4.7kW
-            </div>
+  try {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome to your automation control center</p>
           </div>
-          <div>
-            <BarChart
-              title="Device Usage (kWh)"
-              data={
-                [
-                ...safeUsageData.map(item => ({
-                  name: item.name,
-                    usage: Number((Number(item.value) / 1000).toFixed(2))
-                })),
-                {
-                  name: 'Fan',
-                  usage: safeEnergyData && safeEnergyData.length > 0 
-                      ? Number((safeEnergyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
-                      : 0
-                  },
+          
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <StatCard 
+              title="Energy Usage"
+              value={energyUsage.value}
+              change={energyUsage.change}
+              icon={<Bolt className="h-6 w-6" />}
+            />
+            <StatCard 
+              title="Peak Usage"
+              value={efficiency.value}
+              change={efficiency.change}
+              icon={<TrendingUp className="h-6 w-6" />}
+            />
+            <StatCard 
+              title="Automation Status"
+              value={automationStatus.value}
+              change={automationStatus.change}
+              icon={<Zap className="h-6 w-6" />}
+            />
+          </div>
+          
+          {/* Charts and Alerts */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div className="lg:col-span-2">
+              <LineChart 
+                title="Device Power Consumption"
+                data={safeEnergyData}
+                lines={[
+                  { key: 'acPower', color: '#3b82f6', name: 'AC' },
+                  { key: 'fanPower', color: '#10b981', name: 'Fan' },
+                  { key: 'lightPower', color: '#8b5cf6', name: 'Light' },
+                  { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator' },
+                  { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
+                ]}
+                getChartData={getChartData}
+              />
+              <div className="mt-2 text-sm text-card-foreground bg-card p-3 rounded-lg">
+                <strong>Benchmarks:</strong> AC: 3.5kW | Fan: 0.5kW | Lighting: 0.4kW | Refrigerator: 0.3kW | Total: 4.7kW
+              </div>
+            </div>
+            <div>
+              <BarChart
+                title="Device Usage (kWh)"
+                data={
+                  [
+                  ...safeUsageData.map(item => ({
+                    name: item.name,
+                      usage: Number((Number(item.value) / 1000).toFixed(2))
+                  })),
                   {
-                    name: 'Refrigerator',
+                    name: 'Fan',
                     usage: safeEnergyData && safeEnergyData.length > 0 
-                      ? Number((safeEnergyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
-                    : 0
+                        ? Number((safeEnergyData.reduce((sum, item) => sum + Number(item.fanPower), 0) / 1000).toFixed(2))
+                        : 0
+                    },
+                    {
+                      name: 'Refrigerator',
+                      usage: safeEnergyData && safeEnergyData.length > 0 
+                        ? Number((safeEnergyData.reduce((sum, item) => sum + Number(item.refrigeratorPower), 0) / 1000).toFixed(2))
+                      : 0
+                  }
+                  ].sort((a, b) => b.usage - a.usage)
                 }
-                ].sort((a, b) => b.usage - a.usage)
-              }
-              bars={[
-                {
-                  key: 'usage',
-                  color: '#3b82f6',
-                  name: 'Usage (kWh)'
-                }
-              ]}
-              categories={[]}
-            />
+                bars={[
+                  {
+                    key: 'usage',
+                    color: '#3b82f6',
+                    name: 'Usage (kWh)'
+                  }
+                ]}
+                categories={[]}
+              />
+            </div>
           </div>
-        </div>
-        
-        {/* Device Status Overview */}
-        <div className="mb-6">
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="text-lg font-semibold mb-4 text-card-foreground">Device Status Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* AC Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">AC</h4>
-                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].acPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+          
+          {/* Device Status Overview */}
+          <div className="mb-6">
+            <div className="bg-card rounded-lg border border-border p-6">
+              <h3 className="text-lg font-semibold mb-4 text-card-foreground">Device Status Overview</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* AC Status */}
+                <div className="bg-card rounded-lg p-4 border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-card-foreground">AC</h4>
+                    <div className={`w-3 h-3 rounded-full ${safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].acPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  </div>
+                  <p className="text-2xl font-bold text-card-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 ? (Number(safeEnergyData[safeEnergyData.length - 1].acPower) / 1000).toFixed(2) : '0.00'} kW
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].acPower) > 0 ? 'Running' : 'Idle'}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">
-                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].acPower) / 1000).toFixed(2) : '0.00'} kW
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].acPower) > 0 ? 'Running' : 'Idle'}
-                </p>
-              </div>
-              {/* Fan Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Fan</h4>
-                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].fanPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                {/* Fan Status */}
+                <div className="bg-card rounded-lg p-4 border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-card-foreground">Fan</h4>
+                    <div className={`w-3 h-3 rounded-full ${safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].fanPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  </div>
+                  <p className="text-2xl font-bold text-card-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 ? (Number(safeEnergyData[safeEnergyData.length - 1].fanPower) / 1000).toFixed(2) : '0.00'} kW
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].fanPower) > 0 ? 'Running' : 'Idle'}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">
-                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].fanPower) / 1000).toFixed(2) : '0.00'} kW
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].fanPower) > 0 ? 'Running' : 'Idle'}
-                </p>
-              </div>
-              {/* Lighting Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Lighting</h4>
-                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].lightPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                {/* Lighting Status */}
+                <div className="bg-card rounded-lg p-4 border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-card-foreground">Lighting</h4>
+                    <div className={`w-3 h-3 rounded-full ${safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].lightPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  </div>
+                  <p className="text-2xl font-bold text-card-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 ? (Number(safeEnergyData[safeEnergyData.length - 1].lightPower) / 1000).toFixed(2) : '0.00'} kW
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].lightPower) > 0 ? 'On' : 'Off'}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">
-                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].lightPower) / 1000).toFixed(2) : '0.00'} kW
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].lightPower) > 0 ? 'On' : 'Off'}
-                </p>
-              </div>
-              {/* Refrigerator Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Refrigerator</h4>
-                  <div className={`w-3 h-3 rounded-full ${energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].refrigeratorPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                {/* Refrigerator Status */}
+                <div className="bg-card rounded-lg p-4 border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-card-foreground">Refrigerator</h4>
+                    <div className={`w-3 h-3 rounded-full ${safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].refrigeratorPower) > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                  </div>
+                  <p className="text-2xl font-bold text-card-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 ? (Number(safeEnergyData[safeEnergyData.length - 1].refrigeratorPower) / 1000).toFixed(2) : '0.00'} kW
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {safeEnergyData && safeEnergyData.length > 0 && Number(safeEnergyData[safeEnergyData.length - 1].refrigeratorPower) > 0 ? 'Running' : 'Idle'}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">
-                  {energyData && energyData.length > 0 ? (Number(energyData[energyData.length - 1].refrigeratorPower) / 1000).toFixed(2) : '0.00'} kW
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {energyData && energyData.length > 0 && Number(energyData[energyData.length - 1].refrigeratorPower) > 0 ? 'Running' : 'Idle'}
-                </p>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </Layout>
-  );
+      </Layout>
+    );
+  } catch (error) {
+    console.error('Dashboard render error:', error);
+    return (
+      <Layout>
+        <div className="h-full flex items-center justify-center">
+          <div className="text-xl font-medium text-red-500">
+            Error loading dashboard. Please refresh the page.
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 };
 
 export default Dashboard;
