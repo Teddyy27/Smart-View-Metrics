@@ -38,17 +38,17 @@ import { toast } from '@/components/ui/use-toast';
 import { db } from '@/services/firebase';
 import { ref, set, onValue, off, get, ref as dbRef, set as dbSet } from 'firebase/database';
 import { useDevices } from '@/hooks/useDevices';
-import { deviceTypes } from '@/services/deviceService';
+import { deviceService } from '@/services/deviceService';
+import { DeviceSwitch, useDeviceState } from '@/components/ui/DeviceSwitch';
 
 // Types for our devices
 interface AutomationDevice {
   id: string;
   name: string;
   type: string;
+  state: boolean;
+  lastUpdated: number;
   status: 'online' | 'offline';
-  isOn: boolean;
-  value?: number;
-  lastUpdated: string;
 }
 
 const ROOM_NAME = "Living Room";
@@ -60,7 +60,7 @@ const Automation = () => {
   // Remove togglePath from newDevice state
   const [newDevice, setNewDevice] = useState({
     name: '',
-    type: ''
+    type: '',
   });
 
   // Convert devices from deviceService to AutomationDevice format
@@ -69,10 +69,9 @@ const Automation = () => {
       id: device.id,
       name: device.name,
       type: device.type,
+      state: device.state,
+      lastUpdated: device.lastUpdated,
       status: device.status,
-      isOn: device.state || false,
-      value: device.value,
-      lastUpdated: device.lastSync
     }));
     setAutomationDevices(convertedDevices);
   }, [devices]);
@@ -90,20 +89,40 @@ const Automation = () => {
 
   // Real-time listeners for each device's state
   useEffect(() => {
+    // Listen to device state changes in Firebase for all current devices
     const listeners: Array<() => void> = [];
     automationDevices.forEach(device => {
       const stateRef = ref(db, `devices/${device.id}/state`);
       const listener = onValue(stateRef, (snap) => {
         setAutomationDevices(prev => prev.map(d =>
-          d.id === device.id ? { ...d, isOn: !!snap.val() } : d
+          d.id === device.id ? { ...d, state: !!snap.val() } : d
         ));
       });
       listeners.push(() => off(stateRef, 'value', listener));
     });
+    // Cleanup listeners when devices change or component unmounts
     return () => {
       listeners.forEach(unsub => unsub());
     };
-  }, [automationDevices.length]);
+  // Depend on device IDs so listeners update if devices are added/removed
+  }, [automationDevices.map(d => d.id).join(",")]);
+
+  // Utility to toggle device state in Firebase
+  const toggleDeviceState = (deviceId: string, newState: boolean) => {
+    const deviceRef = ref(db, `devices/${deviceId}/state`);
+    set(deviceRef, newState);
+    logAutomationTrigger(deviceId, newState);
+  };
+
+  // Log automation triggers to Firebase
+  const logAutomationTrigger = (deviceId: string, newState: boolean) => {
+    const logRef = ref(db, `logs/automation`);
+    set(ref(db, `logs/automation/${Date.now()}`), {
+      deviceId,
+      newState,
+      timestamp: Date.now()
+    });
+  };
 
   // Handle adding a new device
   const handleAddDevice = async () => {
@@ -115,7 +134,7 @@ const Automation = () => {
       });
       return;
     }
-    const device = await addDevice(newDevice.name, newDevice.type);
+    const device = await addDevice(newDevice.name, newDevice.type, ''); // Pass empty string for togglePath
     setNewDevice({ name: '', type: '' });
     setIsAddDeviceOpen(false);
     toast({
@@ -145,23 +164,21 @@ const Automation = () => {
     }
   };
 
-  // Update toggleDevice to use the new path
+  // Update toggleDevice to use the new method
   const toggleDevice = (deviceId: string) => {
     const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
-    set(ref(db, `devices/${device.id}/state`), !device.isOn);
+    // Use the deviceService toggleDevice method
+    deviceService.toggleDevice(device.id, !device.state);
   };
 
-  // Handle value change
-  const updateDeviceValue = (deviceId: string, newValue: number) => {
-    setAutomationDevices(automationDevices.map(device =>
-      device.id === deviceId
-        ? { ...device, value: newValue, lastUpdated: new Date().toISOString() }
-        : device
-    ));
+  // Format the last updated time
+  const formatLastUpdated = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString();
   };
 
-  // Get icon for device type
+  // Minimal getDeviceIcon for device card icons
   const getDeviceIcon = (type: string) => {
     switch (type) {
       case 'light':
@@ -175,27 +192,6 @@ const Automation = () => {
       default:
         return <Power className="h-6 w-6" />;
     }
-  };
-
-  // Get value label based on device type
-  const getValueLabel = (device: AutomationDevice) => {
-    if (!device.value) return '';
-    switch (device.type) {
-      case 'ac':
-      case 'refrigerator':
-        return `${device.value}°C`;
-      case 'fan':
-      case 'light':
-        return `${device.value}%`;
-      default:
-        return device.value.toString();
-    }
-  };
-
-  // Format the last updated time
-  const formatLastUpdated = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString();
   };
 
   return (
@@ -238,22 +234,9 @@ const Automation = () => {
                       <SelectValue placeholder="Select device type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {deviceTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
+                      {/* Removed deviceList.map */}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="toggle-path">Toggle Path</Label>
-                  <Input
-                    id="toggle-path"
-                    value={newDevice.togglePath}
-                    onChange={e => setNewDevice({ ...newDevice, togglePath: e.target.value })}
-                    placeholder="/devices/{deviceId}/toggle (default)"
-                  />
                 </div>
               </div>
               <DialogFooter>
@@ -288,7 +271,7 @@ const Automation = () => {
               <Power className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{automationDevices.filter(d => d.isOn).length}</div>
+              <div className="text-2xl font-bold">{automationDevices.filter(d => d.state).length}</div>
               <p className="text-xs text-muted-foreground">
                 Currently running
               </p>
@@ -336,41 +319,13 @@ const Automation = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Power</span>
                       <Switch
-                        checked={device.isOn}
-                        onCheckedChange={checked => set(ref(db, `devices/${device.id}/state`), checked)}
+                        checked={device.state}
+                        onCheckedChange={checked => toggleDeviceState(device.id, checked)}
                         disabled={device.status === 'offline'}
                       />
                     </div>
-                    <div className="text-xs text-muted-foreground break-all">
-                      <strong>Toggle Path:</strong> {device.togglePath}
-                    </div>
-
-                    {device.value !== undefined && device.isOn && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm font-medium">
-                            {device.type === 'light' && 'Brightness'}
-                            {device.type === 'ac' && 'Temperature'}
-                            {device.type === 'fan' && 'Speed'}
-                            {device.type === 'refrigerator' && 'Temperature'}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            {getValueLabel(device)}
-                          </span>
-                        </div>
-                        <Slider
-                          value={[device.value]}
-                          min={device.type === 'ac' ? 16 : device.type === 'refrigerator' ? 35 : 0}
-                          max={device.type === 'ac' ? 30 : device.type === 'refrigerator' ? 60 : 100}
-                          step={device.type === 'ac' || device.type === 'refrigerator' ? 1 : 5}
-                          onValueChange={([value]) => updateDeviceValue(device.id, value)}
-                          disabled={!device.isOn || device.status === 'offline'}
-                        />
-                      </div>
-                    )}
-
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
-                      <span>Last updated: {formatLastUpdated(device.lastUpdated)}</span>
+                      <span>Last updated: {formatLastUpdated(new Date(device.lastUpdated).toISOString())}</span>
                       <Button
                         variant="ghost"
                         size="icon"

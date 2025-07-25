@@ -136,7 +136,7 @@ const Dashboard = () => {
                 )
                 .map(item => ({
                   name: item.name,
-                  usage: Number((Number(item.value) / 10 / 60).toFixed(2))
+                  usage: Number((Number(item.value) / 1000).toFixed(2))
                 }))}
               bars={[
                 {

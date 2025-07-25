@@ -42,6 +42,8 @@ import { cn } from '@/lib/utils';
 import { updateProfile } from 'firebase/auth';
 import { deviceTypes } from '@/services/deviceService';
 import { useDevices } from '@/hooks/useDevices';
+import { db } from '@/services/firebase';
+import { ref, set } from 'firebase/database';
 
 interface NotificationSetting {
   type: string;
@@ -72,9 +74,11 @@ const SettingsPage = () => {
 
   // Device Management State
   const [isAddDeviceOpen, setIsAddDeviceOpen] = useState(false);
+  // Add togglePath to newDevice state
   const [newDevice, setNewDevice] = useState({
     name: '',
-    type: ''
+    type: '',
+    togglePath: '',
   });
 
   // Update profile form when user changes
@@ -133,14 +137,27 @@ const SettingsPage = () => {
       });
       return;
     }
-
-    const device = await addDevice(newDevice.name, newDevice.type);
-    setNewDevice({ name: '', type: '' });
+    const device = await addDevice(newDevice.name, newDevice.type, newDevice.togglePath);
+    setNewDevice({ name: '', type: '', togglePath: '' });
     setIsAddDeviceOpen(false);
-    
     toast({
       title: "Device Added",
       description: `${device.name} has been added successfully.`
+    });
+  };
+
+  // Utility to toggle device state in Firebase
+  const toggleDeviceState = (deviceId: string, newState: boolean) => {
+    const deviceRef = ref(db, `devices/${deviceId}/state`);
+    set(deviceRef, newState);
+    logAutomationTrigger(deviceId, newState);
+  };
+  // Log automation triggers to Firebase
+  const logAutomationTrigger = (deviceId: string, newState: boolean) => {
+    set(ref(db, `logs/automation/${Date.now()}`), {
+      deviceId,
+      newState,
+      timestamp: Date.now()
     });
   };
 
@@ -334,6 +351,15 @@ const SettingsPage = () => {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="toggle-path">Toggle Path</Label>
+                        <Input
+                          id="toggle-path"
+                          value={newDevice.togglePath}
+                          onChange={e => setNewDevice({ ...newDevice, togglePath: e.target.value })}
+                          placeholder="/devices/{deviceId}/toggle (default)"
+                        />
                       </div>
                     </div>
                     <DialogFooter>

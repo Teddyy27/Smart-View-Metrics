@@ -1,15 +1,13 @@
 import { db } from './firebase';
-import { ref, set, remove } from 'firebase/database';
+import { ref, set, remove, update } from 'firebase/database';
 
 export interface Device {
   id: string;
   name: string;
   type: string;
-  status: 'online' | 'offline';
-  lastSync: string;
   state: boolean;
-  value: number;
-  power: number;
+  lastUpdated: number;
+  status: 'online' | 'offline';
 }
 
 export const deviceTypes = [
@@ -81,22 +79,29 @@ class DeviceService {
   // Add a new device
   async addDevice(name: string, type: string): Promise<Device> {
     const id = Date.now().toString();
+    const now = Date.now();
     const device: Device = {
       id,
       name: name.trim(),
       type,
-      status: 'online',
-      lastSync: new Date().toISOString(),
       state: false,
-      value: 0,
-      power: 0
+      lastUpdated: now,
+      status: 'online',
     };
-
     this.devices.push(device);
     this.saveDevices();
     // Sync to Firebase
     await set(ref(db, `devices/${device.id}`), device);
     return device;
+  }
+
+  // Toggle device state
+  async toggleDevice(id: string, newState: boolean): Promise<void> {
+    const now = Date.now();
+    await update(ref(db, `devices/${id}`), {
+      state: newState,
+      lastUpdated: now
+    });
   }
 
   // Remove a device
@@ -118,7 +123,7 @@ class DeviceService {
     const device = this.devices.find(d => d.id === deviceId);
     if (device) {
       device.status = status;
-      device.lastSync = new Date().toISOString();
+      device.lastUpdated = Date.now(); // update lastUpdated instead of lastSync
       this.saveDevices();
       return true;
     }

@@ -14,8 +14,8 @@ export const useDevices = () => {
     return unsubscribe;
   }, []);
 
-  const addDevice = async (name: string, type: string) => {
-    return await deviceService.addDevice(name, type);
+  const addDevice = async (name: string, type: string, togglePath?: string) => {
+    return await deviceService.addDevice(name, type, togglePath);
   };
 
   const removeDevice = async (deviceId: string) => {
