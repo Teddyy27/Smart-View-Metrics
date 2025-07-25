@@ -38,7 +38,7 @@ import { toast } from '@/components/ui/use-toast';
 import { db } from '@/services/firebase';
 import { ref, set, onValue, off, get, ref as dbRef, set as dbSet } from 'firebase/database';
 import { useDevices } from '@/hooks/useDevices';
-import { deviceService } from '@/services/deviceService';
+import { deviceService, deviceTypes } from '@/services/deviceService';
 import { DeviceSwitch, useDeviceState } from '@/components/ui/DeviceSwitch';
 
 // Types for our devices
@@ -173,8 +173,10 @@ const Automation = () => {
   };
 
   // Format the last updated time
-  const formatLastUpdated = (timestamp: string) => {
+  const formatLastUpdated = (timestamp: number | undefined) => {
+    if (!timestamp || isNaN(timestamp)) return 'N/A';
     const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return 'N/A';
     return date.toLocaleTimeString();
   };
 
@@ -234,7 +236,11 @@ const Automation = () => {
                       <SelectValue placeholder="Select device type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {/* Removed deviceList.map */}
+                      {deviceTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -325,7 +331,7 @@ const Automation = () => {
                       />
                     </div>
                     <div className="flex justify-between items-center text-xs text-muted-foreground">
-                      <span>Last updated: {formatLastUpdated(new Date(device.lastUpdated).toISOString())}</span>
+                      <span>Last updated: {formatLastUpdated(device.lastUpdated)}</span>
                       <Button
                         variant="ghost"
                         size="icon"
