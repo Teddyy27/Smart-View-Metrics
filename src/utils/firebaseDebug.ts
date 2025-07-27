@@ -1,195 +1,352 @@
 import { db } from '@/services/firebase';
-import { ref, get, set, remove, onValue, off } from 'firebase/database';
-
-export interface FirebaseDebugInfo {
-  connected: boolean;
-  permissions: {
-    read: boolean;
-    write: boolean;
-    delete: boolean;
-  };
-  testPath: string;
-  error?: string;
-}
+import { ref, get, set, remove, onValue, off, push, child } from 'firebase/database';
 
 /**
- * Debug Firebase connection and permissions
+ * Comprehensive Firebase debugging utility
+ * This helps identify issues with Firebase operations
  */
 export class FirebaseDebugger {
-  private static testPath = 'debug_test';
-
   /**
-   * Test Firebase connection and basic permissions
+   * Test basic Firebase connectivity and permissions
    */
-  static async testConnection(): Promise<FirebaseDebugInfo> {
-    const result: FirebaseDebugInfo = {
-      connected: false,
-      permissions: {
-        read: false,
-        write: false,
-        delete: false
-      },
-      testPath: this.testPath
-    };
-
+  static async testConnection(): Promise<{ success: boolean; details: any }> {
     try {
-      console.log('Testing Firebase connection...');
-
-      // Test 1: Basic connection by reading a known path
-      const rootRef = ref(db, '.info/connected');
-      const connectionSnapshot = await get(rootRef);
-      result.connected = connectionSnapshot.val() === true;
-
-      console.log('Firebase connection test:', result.connected);
-
-      // Test 2: Read permission
-      try {
-        const readRef = ref(db, this.testPath);
-        await get(readRef);
-        result.permissions.read = true;
-        console.log('Read permission: OK');
-      } catch (error) {
-        console.log('Read permission: FAILED', error);
-        result.error = `Read failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.log('🔍 Testing Firebase connection...');
+      
+      // Test read permission
+      const testRef = ref(db, 'test-connection');
+      await set(testRef, { timestamp: Date.now(), test: true });
+      
+      // Test read back
+      const snapshot = await get(testRef);
+      if (!snapshot.exists()) {
+        throw new Error('Write succeeded but read failed');
       }
-
-      // Test 3: Write permission
-      try {
-        const writeRef = ref(db, `${this.testPath}/write_test`);
-        await set(writeRef, { timestamp: Date.now(), test: true });
-        result.permissions.write = true;
-        console.log('Write permission: OK');
-      } catch (error) {
-        console.log('Write permission: FAILED', error);
-        result.error = `Write failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      
+      // Test delete permission
+      await remove(testRef);
+      
+      // Verify deletion
+      const verifySnapshot = await get(testRef);
+      if (verifySnapshot.exists()) {
+        throw new Error('Delete operation failed - data still exists');
       }
-
-      // Test 4: Delete permission
-      try {
-        const deleteRef = ref(db, `${this.testPath}/write_test`);
-        await remove(deleteRef);
-        result.permissions.delete = true;
-        console.log('Delete permission: OK');
-      } catch (error) {
-        console.log('Delete permission: FAILED', error);
-        result.error = `Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      }
-
-      // Cleanup test data
-      try {
-        await remove(ref(db, this.testPath));
-      } catch (error) {
-        console.log('Cleanup failed (non-critical):', error);
-      }
-
+      
+      console.log('✅ Firebase connection test passed');
+      return {
+        success: true,
+        details: {
+          read: true,
+          write: true,
+          delete: true,
+          timestamp: Date.now()
+        }
+      };
+      
     } catch (error) {
-      console.error('Firebase debug test failed:', error);
-      result.error = `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error('❌ Firebase connection test failed:', error);
+      return {
+        success: false,
+        details: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now()
+        }
+      };
     }
-
-    return result;
   }
 
   /**
    * Test specific device path permissions
    */
-  static async testDevicePathPermissions(deviceId: string): Promise<any> {
-    const devicePath = `devices/${deviceId}`;
-    const result = {
-      deviceId,
-      devicePath,
-      read: false,
-      write: false,
-      delete: false,
-      exists: false,
-      error: null as string | null
-    };
-
+  static async testDevicePathPermissions(deviceId: string): Promise<{ success: boolean; details: any }> {
     try {
-      console.log(`Testing permissions for device path: ${devicePath}`);
-
+      console.log(`🔍 Testing device path permissions for: ${deviceId}`);
+      
+      const deviceRef = ref(db, `devices/${deviceId}`);
+      
       // Test read
-      try {
-        const deviceRef = ref(db, devicePath);
-        const snapshot = await get(deviceRef);
-        result.read = true;
-        result.exists = snapshot.exists();
-        console.log(`Device read: OK, exists: ${result.exists}`);
-      } catch (error) {
-        console.log(`Device read: FAILED`, error);
-        result.error = `Read failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      }
-
-      // Test write (only if device exists)
-      if (result.exists) {
-        try {
-          const deviceRef = ref(db, `${devicePath}/test_write`);
-          await set(deviceRef, { test: true, timestamp: Date.now() });
-          result.write = true;
-          console.log('Device write: OK');
-          
-          // Clean up test write
-          await remove(deviceRef);
-        } catch (error) {
-          console.log('Device write: FAILED', error);
-          result.error = `Write failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        }
-      }
-
-      // Test delete (only if device exists)
-      if (result.exists) {
-        try {
-          // Create a temporary test node
-          const testRef = ref(db, `${devicePath}/test_delete`);
-          await set(testRef, { test: true });
-          
-          // Try to delete it
-          await remove(testRef);
-          result.delete = true;
-          console.log('Device delete: OK');
-        } catch (error) {
-          console.log('Device delete: FAILED', error);
-          result.error = `Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        }
-      }
-
-    } catch (error) {
-      console.error('Device path permission test failed:', error);
-      result.error = `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    }
-
-    return result;
-  }
-
-  /**
-   * Get Firebase database rules (if accessible)
-   */
-  static async getDatabaseRules(): Promise<any> {
-    try {
-      const rulesRef = ref(db, '.info/rules');
-      const snapshot = await get(rulesRef);
-      return {
-        accessible: true,
-        rules: snapshot.val()
+      const snapshot = await get(deviceRef);
+      const canRead = snapshot.exists();
+      
+      // Test write (if device exists, update it; if not, create test)
+      const testData = { 
+        test: true, 
+        timestamp: Date.now(),
+        originalData: canRead ? snapshot.val() : null
       };
-    } catch (error) {
+      
+      await set(deviceRef, testData);
+      
+      // Test read back
+      const writeSnapshot = await get(deviceRef);
+      const canWrite = writeSnapshot.exists();
+      
+      // Test delete
+      await remove(deviceRef);
+      
+      // Verify deletion
+      const deleteSnapshot = await get(deviceRef);
+      const canDelete = !deleteSnapshot.exists();
+      
+      // Restore original data if it existed
+      if (canRead && testData.originalData) {
+        await set(deviceRef, testData.originalData);
+      }
+      
+      console.log(`✅ Device path permissions test completed for ${deviceId}`);
       return {
-        accessible: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        success: canRead && canWrite && canDelete,
+        details: {
+          deviceId,
+          canRead,
+          canWrite,
+          canDelete,
+          timestamp: Date.now()
+        }
+      };
+      
+    } catch (error) {
+      console.error(`❌ Device path permissions test failed for ${deviceId}:`, error);
+      return {
+        success: false,
+        details: {
+          deviceId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now()
+        }
       };
     }
   }
 
   /**
-   * Monitor real-time connection status
+   * Monitor Firebase connection status in real-time
    */
-  static monitorConnection(callback: (connected: boolean) => void): () => void {
-    const connectionRef = ref(db, '.info/connected');
-    const listener = onValue(connectionRef, (snapshot) => {
-      const connected = snapshot.val();
-      callback(connected);
+  static monitorConnection(): { stop: () => void; status: string } {
+    let status = 'unknown';
+    
+    const connectedRef = ref(db, '.info/connected');
+    const listener = onValue(connectedRef, (snapshot) => {
+      status = snapshot.val() ? 'connected' : 'disconnected';
+      console.log(`🌐 Firebase connection status: ${status}`);
     });
     
-    return () => off(connectionRef, 'value', listener);
+    return {
+      stop: () => off(connectedRef, 'value', listener),
+      get status() { return status; }
+    };
   }
-} 
+
+  /**
+   * Get detailed information about all devices in Firebase
+   */
+  static async getDeviceDetails(): Promise<{ success: boolean; devices: any[]; details: any }> {
+    try {
+      console.log('🔍 Getting detailed device information...');
+      
+      const devicesRef = ref(db, 'devices');
+      const snapshot = await get(devicesRef);
+      
+      if (!snapshot.exists()) {
+        return {
+          success: true,
+          devices: [],
+          details: { count: 0, timestamp: Date.now() }
+        };
+      }
+      
+      const data = snapshot.val();
+      const devices = Object.keys(data).map(id => ({
+        id,
+        ...data[id],
+        path: `devices/${id}`,
+        lastModified: data[id].lastUpdated || 'unknown'
+      }));
+      
+      console.log(`✅ Found ${devices.length} devices in Firebase`);
+      return {
+        success: true,
+        devices,
+        details: {
+          count: devices.length,
+          timestamp: Date.now(),
+          deviceIds: devices.map(d => d.id)
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Failed to get device details:', error);
+      return {
+        success: false,
+        devices: [],
+        details: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now()
+        }
+      };
+    }
+  }
+
+  /**
+   * Test if there are any other processes adding devices
+   */
+  static async monitorDeviceChanges(duration: number = 10000): Promise<{ success: boolean; changes: any[] }> {
+    return new Promise((resolve) => {
+      console.log(`🔍 Monitoring device changes for ${duration}ms...`);
+      
+      const devicesRef = ref(db, 'devices');
+      const changes: any[] = [];
+      
+      const listener = onValue(devicesRef, (snapshot) => {
+        const timestamp = Date.now();
+        const data = snapshot.val();
+        const deviceCount = data ? Object.keys(data).length : 0;
+        
+        changes.push({
+          timestamp,
+          deviceCount,
+          hasData: !!data,
+          deviceIds: data ? Object.keys(data) : []
+        });
+        
+        console.log(`📊 Device count at ${new Date(timestamp).toLocaleTimeString()}: ${deviceCount}`);
+      });
+      
+      // Stop monitoring after duration
+      setTimeout(() => {
+        off(devicesRef, 'value', listener);
+        console.log(`✅ Device monitoring completed. ${changes.length} changes detected.`);
+        resolve({
+          success: true,
+          changes
+        });
+      }, duration);
+    });
+  }
+
+  /**
+   * Test Firebase rules by attempting various operations
+   */
+  static async testFirebaseRules(): Promise<{ success: boolean; results: any }> {
+    try {
+      console.log('🔍 Testing Firebase security rules...');
+      
+      const results = {
+        read: false,
+        write: false,
+        delete: false,
+        admin: false,
+        timestamp: Date.now()
+      };
+      
+      // Test read access
+      try {
+        const testRef = ref(db, 'rules-test');
+        await get(testRef);
+        results.read = true;
+      } catch (error) {
+        console.log('❌ Read access denied');
+      }
+      
+      // Test write access
+      try {
+        const testRef = ref(db, 'rules-test');
+        await set(testRef, { test: true, timestamp: Date.now() });
+        results.write = true;
+      } catch (error) {
+        console.log('❌ Write access denied');
+      }
+      
+      // Test delete access
+      try {
+        const testRef = ref(db, 'rules-test');
+        await remove(testRef);
+        results.delete = true;
+      } catch (error) {
+        console.log('❌ Delete access denied');
+      }
+      
+      // Test admin access (try to access .info)
+      try {
+        const infoRef = ref(db, '.info');
+        await get(infoRef);
+        results.admin = true;
+      } catch (error) {
+        console.log('❌ Admin access denied (expected)');
+      }
+      
+      console.log('✅ Firebase rules test completed');
+      return {
+        success: results.read && results.write && results.delete,
+        results
+      };
+      
+    } catch (error) {
+      console.error('❌ Firebase rules test failed:', error);
+      return {
+        success: false,
+        results: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now()
+        }
+      };
+    }
+  }
+
+  /**
+   * Comprehensive diagnostic that runs all tests
+   */
+  static async runFullDiagnostic(): Promise<{ success: boolean; results: any }> {
+    console.log('🚀 Starting comprehensive Firebase diagnostic...');
+    
+    const results = {
+      connection: null,
+      rules: null,
+      devices: null,
+      monitoring: null,
+      timestamp: Date.now()
+    };
+    
+    try {
+      // Test connection
+      results.connection = await this.testConnection();
+      
+      // Test rules
+      results.rules = await this.testFirebaseRules();
+      
+      // Get device details
+      results.devices = await this.getDeviceDetails();
+      
+      // Monitor for changes (5 seconds)
+      results.monitoring = await this.monitorDeviceChanges(5000);
+      
+      const overallSuccess = results.connection?.success && 
+                           results.rules?.success && 
+                           results.devices?.success;
+      
+      console.log('✅ Full diagnostic completed');
+      return {
+        success: overallSuccess,
+        results
+      };
+      
+    } catch (error) {
+      console.error('❌ Full diagnostic failed:', error);
+      return {
+        success: false,
+        results: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: Date.now()
+        }
+      };
+    }
+  }
+}
+
+// Export convenience functions
+export const testConnection = FirebaseDebugger.testConnection;
+export const testDevicePathPermissions = FirebaseDebugger.testDevicePathPermissions;
+export const monitorConnection = FirebaseDebugger.monitorConnection;
+export const getDeviceDetails = FirebaseDebugger.getDeviceDetails;
+export const monitorDeviceChanges = FirebaseDebugger.monitorDeviceChanges;
+export const testFirebaseRules = FirebaseDebugger.testFirebaseRules;
+export const runFullDiagnostic = FirebaseDebugger.runFullDiagnostic; 

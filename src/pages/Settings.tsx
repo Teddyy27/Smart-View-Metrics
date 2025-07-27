@@ -47,6 +47,7 @@ import { ref, set } from 'firebase/database';
 import { runDeviceSyncTest, DeviceSyncTester } from '@/utils/deviceSyncTest';
 import { FirebaseDebugger } from '@/utils/firebaseDebug';
 import { EmergencyDeviceRemoval } from '@/utils/emergencyDeviceRemoval';
+import { DeviceRecreationDetector } from '@/utils/deviceRecreationDetector';
 
 interface NotificationSetting {
   type: string;
@@ -292,34 +293,225 @@ const SettingsPage = () => {
 
   const handleFirebaseDebug = async () => {
     try {
-      console.log('Running Firebase debug tests...');
+      console.log('🔍 Running comprehensive Firebase debug...');
       
-      // Test basic connection and permissions
-      const connectionResult = await FirebaseDebugger.testConnection();
-      console.log('Firebase connection test result:', connectionResult);
+      const diagnosticResult = await FirebaseDebugger.runFullDiagnostic();
       
-      // Test device path permissions if we have devices
-      const allDevices = await DeviceSyncTester.listAllDevices();
-      if (allDevices.length > 0) {
-        const testDevice = allDevices[0];
-        const devicePermissions = await FirebaseDebugger.testDevicePathPermissions(testDevice.id);
-        console.log('Device path permissions test result:', devicePermissions);
+      setTestResult(JSON.stringify({
+        diagnostic: diagnosticResult,
+        timestamp: Date.now()
+      }, null, 2));
+      
+      if (diagnosticResult.success) {
+        toast({
+          title: "Firebase Diagnostic Complete",
+          description: "All Firebase tests passed successfully",
+        });
+      } else {
+        toast({
+          title: "Firebase Issues Detected",
+          description: "Some Firebase tests failed. Check console for details.",
+          variant: "destructive"
+        });
       }
-      
-      // Get database rules
-      const rules = await FirebaseDebugger.getDatabaseRules();
-      console.log('Database rules:', rules);
-      
-      toast({
-        title: "Firebase Debug Complete",
-        description: "Check console for detailed debug information",
-      });
       
     } catch (error) {
       console.error('Firebase debug failed:', error);
       toast({
-        title: "Debug Error",
+        title: "Debug Failed",
         description: "Failed to run Firebase debug tests",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMonitorDevices = async () => {
+    try {
+      console.log('🔍 Monitoring device changes...');
+      
+      const monitoringResult = await FirebaseDebugger.monitorDeviceChanges(10000); // 10 seconds
+      
+      setTestResult(JSON.stringify({
+        monitoring: monitoringResult,
+        timestamp: Date.now()
+      }, null, 2));
+      
+      toast({
+        title: "Device Monitoring Complete",
+        description: `Detected ${monitoringResult.changes.length} changes in 10 seconds`,
+      });
+      
+    } catch (error) {
+      console.error('Device monitoring failed:', error);
+      toast({
+        title: "Monitoring Failed",
+        description: "Failed to monitor device changes",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleGetDeviceDetails = async () => {
+    try {
+      console.log('🔍 Getting detailed device information...');
+      
+      const deviceResult = await FirebaseDebugger.getDeviceDetails();
+      
+      setTestResult(JSON.stringify({
+        devices: deviceResult,
+        timestamp: Date.now()
+      }, null, 2));
+      
+      if (deviceResult.success) {
+        toast({
+          title: "Device Details Retrieved",
+          description: `Found ${deviceResult.devices.length} devices in Firebase`,
+        });
+      } else {
+        toast({
+          title: "Failed to Get Devices",
+          description: "Could not retrieve device details",
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('Get device details failed:', error);
+      toast({
+        title: "Failed",
+        description: "Failed to get device details",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMonitorDeviceRecreation = async () => {
+    try {
+      console.log('🔍 Monitoring device recreation...');
+      
+      const recreationResult = await DeviceRecreationDetector.monitorDeviceRecreation(15000); // 15 seconds
+      
+      setTestResult(JSON.stringify({
+        recreation: recreationResult,
+        timestamp: Date.now()
+      }, null, 2));
+      
+      if (recreationResult.success) {
+        if (recreationResult.recreations.length > 0) {
+          toast({
+            title: "Device Recreation Detected!",
+            description: `${recreationResult.recreations.length} devices were recreated`,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "No Recreation Detected",
+            description: "No devices were recreated during monitoring",
+          });
+        }
+      } else {
+        toast({
+          title: "Monitoring Failed",
+          description: "Failed to monitor device recreation",
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('Device recreation monitoring failed:', error);
+      toast({
+        title: "Monitoring Failed",
+        description: "Failed to monitor device recreation",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleTestDeviceDeletion = async () => {
+    try {
+      // Get the first device to test
+      const allDevices = await DeviceSyncTester.listAllDevices();
+      
+      if (allDevices.length === 0) {
+        toast({
+          title: "No Devices",
+          description: "No devices available to test deletion",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const testDevice = allDevices[0];
+      console.log(`🧪 Testing deletion of device: ${testDevice.id} (${testDevice.name})`);
+      
+      const deletionResult = await DeviceRecreationDetector.testDeviceDeletion(testDevice.id);
+      
+      setTestResult(JSON.stringify({
+        deletionTest: deletionResult,
+        device: testDevice,
+        timestamp: Date.now()
+      }, null, 2));
+      
+      if (deletionResult.wasRecreated) {
+        toast({
+          title: "Device Recreation Confirmed!",
+          description: `Device was recreated after ${deletionResult.recreationTime}ms`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Deletion Test Passed",
+          description: "Device was deleted and not recreated",
+        });
+      }
+      
+    } catch (error) {
+      console.error('Device deletion test failed:', error);
+      toast({
+        title: "Test Failed",
+        description: "Failed to test device deletion",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleIdentifyRecreationSources = async () => {
+    try {
+      console.log('🔍 Identifying recreation sources...');
+      
+      const sourcesResult = await DeviceRecreationDetector.identifyRecreationSources();
+      
+      setTestResult(JSON.stringify({
+        sources: sourcesResult,
+        timestamp: Date.now()
+      }, null, 2));
+      
+      if (sourcesResult.success) {
+        if (sourcesResult.potentialSources.length > 0) {
+          toast({
+            title: "Recreation Sources Found",
+            description: `${sourcesResult.potentialSources.length} potential sources identified`,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "No Sources Found",
+            description: "No obvious recreation sources detected",
+          });
+        }
+      } else {
+        toast({
+          title: "Analysis Failed",
+          description: "Failed to identify recreation sources",
+          variant: "destructive"
+        });
+      }
+      
+    } catch (error) {
+      console.error('Source identification failed:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to identify recreation sources",
         variant: "destructive"
       });
     }
@@ -830,8 +1022,53 @@ const SettingsPage = () => {
                     variant="outline"
                     className="w-full"
                   >
-                    Firebase Debug
+                    🔍 Firebase Diagnostic
                   </Button>
+                  
+                  <Button 
+                    onClick={handleMonitorDevices} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    📊 Monitor Device Changes
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleGetDeviceDetails} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    📋 Get Device Details
+                  </Button>
+                  
+                  <div className="border-t pt-4">
+                    <h5 className="font-medium mb-3 text-orange-600">🔍 Device Recreation Detection</h5>
+                    <div className="space-y-2">
+                      <Button 
+                        onClick={handleMonitorDeviceRecreation} 
+                        variant="outline"
+                        className="w-full"
+                      >
+                        🔄 Monitor Device Recreation
+                      </Button>
+                      
+                      <Button 
+                        onClick={handleTestDeviceDeletion} 
+                        variant="outline"
+                        className="w-full"
+                      >
+                        🧪 Test Device Deletion
+                      </Button>
+                      
+                      <Button 
+                        onClick={handleIdentifyRecreationSources} 
+                        variant="outline"
+                        className="w-full"
+                      >
+                        🔍 Identify Recreation Sources
+                      </Button>
+                    </div>
+                  </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="manual-device-id">Emergency Device Removal</Label>
