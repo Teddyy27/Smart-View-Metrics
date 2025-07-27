@@ -44,6 +44,9 @@ import { deviceTypes } from '@/services/deviceService';
 import { useDevices } from '@/hooks/useDevices';
 import { db } from '@/services/firebase';
 import { ref, set } from 'firebase/database';
+import { runDeviceSyncTest, DeviceSyncTester } from '@/utils/deviceSyncTest';
+import { FirebaseDebugger } from '@/utils/firebaseDebug';
+import { EmergencyDeviceRemoval } from '@/utils/emergencyDeviceRemoval';
 
 interface NotificationSetting {
   type: string;
@@ -112,14 +115,28 @@ const SettingsPage = () => {
     lastSync: new Date().toISOString()
   });
 
+  // Test state
+  const [testRunning, setTestRunning] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+  const [manualDeviceId, setManualDeviceId] = useState('');
+
   const handleDeviceRemove = async (deviceId: string) => {
-    const success = await removeDevice(deviceId);
-    if (success) {
-      toast({
-        title: "Device Removed",
-        description: "The device has been removed successfully."
-      });
-    } else {
+    try {
+      const success = await removeDevice(deviceId);
+      if (success) {
+        toast({
+          title: "Device Removed",
+          description: "The device has been removed successfully."
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to remove device",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error removing device:', error);
       toast({
         title: "Error",
         description: "Failed to remove device",
@@ -167,6 +184,222 @@ const SettingsPage = () => {
         ? { ...notification, enabled: !notification.enabled }
         : notification
     ));
+  };
+
+  const handleDeviceSyncTest = async () => {
+    setTestRunning(true);
+    setTestResult(null);
+    
+    try {
+      const result = await runDeviceSyncTest();
+      setTestResult(result.success ? 
+        `✅ ${result.message}` : 
+        `❌ ${result.message}`
+      );
+      
+      if (result.success) {
+        toast({
+          title: "Test Passed",
+          description: "Device synchronization is working correctly across sessions.",
+        });
+      } else {
+        toast({
+          title: "Test Failed",
+          description: result.message,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      setTestResult(`❌ Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast({
+        title: "Test Error",
+        description: "An error occurred during the test.",
+        variant: "destructive"
+      });
+    } finally {
+      setTestRunning(false);
+    }
+  };
+
+  const handleGetDeviceInfo = async () => {
+    try {
+      const deviceCount = await DeviceSyncTester.getDeviceCount();
+      const allDevices = await DeviceSyncTester.listAllDevices();
+      
+      toast({
+        title: "Device Information",
+        description: `Total devices: ${deviceCount}. Check console for details.`,
+      });
+      
+      console.log('All devices in Firebase:', allDevices);
+      
+      // Also log detailed info for each device
+      for (const device of allDevices) {
+        const details = await DeviceSyncTester.getDeviceDetails(device.id);
+        console.log(`Device details for ${device.id}:`, details);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to get device information",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleTestDeviceRemoval = async () => {
+    try {
+      // Get the first device to test removal
+      const allDevices = await DeviceSyncTester.listAllDevices();
+      
+      if (allDevices.length === 0) {
+        toast({
+          title: "No Devices",
+          description: "No devices available to test removal",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const testDevice = allDevices[0];
+      console.log(`Testing removal of device: ${testDevice.id} (${testDevice.name})`);
+      
+      const result = await DeviceSyncTester.testDeviceRemoval(testDevice.id);
+      
+      if (result.success) {
+        toast({
+          title: "Removal Test Passed",
+          description: result.message,
+        });
+      } else {
+        toast({
+          title: "Removal Test Failed",
+          description: result.message,
+          variant: "destructive"
+        });
+      }
+      
+      console.log('Device removal test result:', result);
+      
+    } catch (error) {
+      toast({
+        title: "Test Error",
+        description: "Failed to test device removal",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleFirebaseDebug = async () => {
+    try {
+      console.log('Running Firebase debug tests...');
+      
+      // Test basic connection and permissions
+      const connectionResult = await FirebaseDebugger.testConnection();
+      console.log('Firebase connection test result:', connectionResult);
+      
+      // Test device path permissions if we have devices
+      const allDevices = await DeviceSyncTester.listAllDevices();
+      if (allDevices.length > 0) {
+        const testDevice = allDevices[0];
+        const devicePermissions = await FirebaseDebugger.testDevicePathPermissions(testDevice.id);
+        console.log('Device path permissions test result:', devicePermissions);
+      }
+      
+      // Get database rules
+      const rules = await FirebaseDebugger.getDatabaseRules();
+      console.log('Database rules:', rules);
+      
+      toast({
+        title: "Firebase Debug Complete",
+        description: "Check console for detailed debug information",
+      });
+      
+    } catch (error) {
+      console.error('Firebase debug failed:', error);
+      toast({
+        title: "Debug Error",
+        description: "Failed to run Firebase debug tests",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleManualDeviceRemoval = async () => {
+    if (!manualDeviceId.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a device ID",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log(`Manually removing device: ${manualDeviceId}`);
+      
+      // Use emergency removal utility
+      const result = await EmergencyDeviceRemoval.removeDevice(manualDeviceId);
+      
+      if (result.success) {
+        toast({
+          title: "Device Removed",
+          description: result.message,
+        });
+        setManualDeviceId('');
+      } else {
+        toast({
+          title: "Removal Failed",
+          description: result.message,
+          variant: "destructive"
+        });
+      }
+      
+      console.log('Emergency removal result:', result);
+      
+    } catch (error) {
+      console.error('Emergency device removal failed:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove device",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEmergencyRemoveAll = async () => {
+    if (!confirm('⚠️ WARNING: This will remove ALL devices from Firebase. Are you sure?')) {
+      return;
+    }
+
+    try {
+      console.log('🚨 Emergency removal of all devices');
+      
+      const result = await EmergencyDeviceRemoval.removeAllDevices();
+      
+      if (result.success) {
+        toast({
+          title: "All Devices Removed",
+          description: result.message,
+        });
+      } else {
+        toast({
+          title: "Removal Failed",
+          description: result.message,
+          variant: "destructive"
+        });
+      }
+      
+      console.log('Emergency remove all result:', result);
+      
+    } catch (error) {
+      console.error('Emergency remove all failed:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove all devices",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleProfileChange = (field: string, value: string) => {
@@ -461,7 +694,7 @@ const SettingsPage = () => {
           <Card>
             <CardHeader>
               <CardTitle>Real-Time Data Synchronization</CardTitle>
-              <CardDescription>Configure how your data is synchronized</CardDescription>
+              <CardDescription>Configure how your data is synchronized and test device sync</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
@@ -493,6 +726,80 @@ const SettingsPage = () => {
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Sync Now
               </Button>
+              
+              <div className="border-t pt-6">
+                <h4 className="font-medium mb-4">Device Synchronization Test</h4>
+                <div className="space-y-3">
+                  <Button 
+                    onClick={handleDeviceSyncTest} 
+                    disabled={testRunning}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {testRunning ? 'Running Test...' : 'Test Device Sync'}
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleGetDeviceInfo} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Get Device Information
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleTestDeviceRemoval} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Test Device Removal
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleFirebaseDebug} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Firebase Debug
+                  </Button>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-device-id">Emergency Device Removal</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="manual-device-id"
+                        value={manualDeviceId}
+                        onChange={(e) => setManualDeviceId(e.target.value)}
+                        placeholder="Enter device ID (e.g., 1753475599563)"
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleManualDeviceRemoval}
+                        variant="destructive"
+                        size="sm"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={handleEmergencyRemoveAll} 
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    🚨 Remove ALL Devices (Nuclear Option)
+                  </Button>
+                  
+                  {testResult && (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      testResult.startsWith('✅') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                    }`}>
+                      {testResult}
+                    </div>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
         );

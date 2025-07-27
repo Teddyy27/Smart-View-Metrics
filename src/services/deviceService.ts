@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { ref, set, remove, update } from 'firebase/database';
+import { ref, set, remove, update, onValue, off, get } from 'firebase/database';
 
 export interface Device {
   id: string;
@@ -21,35 +21,31 @@ export const deviceTypes = [
   { value: 'smart-plug', label: 'Smart Plug' },
 ];
 
-const DEVICES_STORAGE_KEY = 'smart_home_devices';
-
 class DeviceService {
   private devices: Device[] = [];
   private listeners: ((devices: Device[]) => void)[] = [];
+  private firebaseListener: (() => void) | null = null;
 
   constructor() {
-    this.loadDevices();
+    this.initializeFirebaseListener();
   }
 
-  private loadDevices() {
-    try {
-      const savedDevices = localStorage.getItem(DEVICES_STORAGE_KEY);
-      if (savedDevices) {
-        this.devices = JSON.parse(savedDevices);
+  private initializeFirebaseListener() {
+    // Listen to the devices node in Firebase
+    const devicesRef = ref(db, 'devices');
+    this.firebaseListener = onValue(devicesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // Convert Firebase object to array
+        this.devices = Object.keys(data).map(id => ({
+          id,
+          ...data[id]
+        }));
+      } else {
+        this.devices = [];
       }
-    } catch (error) {
-      console.error('Error loading devices from localStorage:', error);
-      this.devices = [];
-    }
-  }
-
-  private saveDevices() {
-    try {
-      localStorage.setItem(DEVICES_STORAGE_KEY, JSON.stringify(this.devices));
       this.notifyListeners();
-    } catch (error) {
-      console.error('Error saving devices to localStorage:', error);
-    }
+    });
   }
 
   private notifyListeners() {
@@ -77,7 +73,7 @@ class DeviceService {
   }
 
   // Add a new device
-  async addDevice(name: string, type: string): Promise<Device> {
+  async addDevice(name: string, type: string, togglePath?: string): Promise<Device> {
     const id = Date.now().toString();
     const now = Date.now();
     const device: Device = {
@@ -88,9 +84,8 @@ class DeviceService {
       lastUpdated: now,
       status: 'online',
     };
-    this.devices.push(device);
-    this.saveDevices();
-    // Sync to Firebase
+    
+    // Save to Firebase - this will trigger the listener and update local state
     await set(ref(db, `devices/${device.id}`), device);
     return device;
   }
@@ -106,28 +101,55 @@ class DeviceService {
 
   // Remove a device
   async removeDevice(deviceId: string): Promise<boolean> {
-    const initialLength = this.devices.length;
-    this.devices = this.devices.filter(device => device.id !== deviceId);
-    
-    if (this.devices.length !== initialLength) {
-      this.saveDevices();
-      // Remove from Firebase
-      await remove(ref(db, `devices/${deviceId}`));
+    try {
+      console.log(`Attempting to remove device: ${deviceId}`);
+      
+      // First, check if the device exists
+      const deviceRef = ref(db, `devices/${deviceId}`);
+      const snapshot = await get(deviceRef);
+      
+      if (!snapshot.exists()) {
+        console.error(`Device ${deviceId} does not exist in Firebase`);
+        return false;
+      }
+      
+      console.log(`Device ${deviceId} found, proceeding with removal`);
+      
+      // Remove the device from Firebase
+      await remove(deviceRef);
+      
+      console.log(`Device ${deviceId} successfully removed from Firebase`);
       return true;
+      
+    } catch (error) {
+      console.error('Error removing device:', error);
+      
+      // Log more detailed error information
+      if (error instanceof Error) {
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+      }
+      
+      return false;
     }
-    return false;
   }
 
   // Update device status
-  updateDeviceStatus(deviceId: string, status: 'online' | 'offline'): boolean {
-    const device = this.devices.find(d => d.id === deviceId);
-    if (device) {
-      device.status = status;
-      device.lastUpdated = Date.now(); // update lastUpdated instead of lastSync
-      this.saveDevices();
+  async updateDeviceStatus(deviceId: string, status: 'online' | 'offline'): Promise<boolean> {
+    try {
+      const now = Date.now();
+      await update(ref(db, `devices/${deviceId}`), {
+        status,
+        lastUpdated: now
+      });
       return true;
+    } catch (error) {
+      console.error('Error updating device status:', error);
+      return false;
     }
-    return false;
   }
 
   // Get device by ID
@@ -141,9 +163,21 @@ class DeviceService {
   }
 
   // Clear all devices
-  clearDevices() {
-    this.devices = [];
-    this.saveDevices();
+  async clearDevices(): Promise<void> {
+    try {
+      await remove(ref(db, 'devices'));
+    } catch (error) {
+      console.error('Error clearing devices:', error);
+    }
+  }
+
+  // Cleanup method to remove Firebase listener
+  cleanup() {
+    if (this.firebaseListener) {
+      const devicesRef = ref(db, 'devices');
+      off(devicesRef, 'value', this.firebaseListener);
+      this.firebaseListener = null;
+    }
   }
 }
 

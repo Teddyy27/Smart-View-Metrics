@@ -3,7 +3,15 @@ import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import LineChart from '@/components/dashboard/LineChart';
 import BarChart from '@/components/dashboard/BarChart';
-import { Bolt, TrendingUp, Zap } from 'lucide-react';
+import DeviceStatus from '@/components/dashboard/DeviceStatus';
+import { Bolt, TrendingUp, Zap, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { useDevices } from '@/hooks/useDevices';
+import { deviceService } from '@/services/deviceService';
+import { toast } from '@/components/ui/use-toast';
 import useSWR from 'swr';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
@@ -14,6 +22,7 @@ const Dashboard = () => {
     revalidateOnFocus: false,
   });
 
+  const { devices, loading: devicesLoading } = useDevices();
   const [activeRange, setActiveRange] = useState('1h');
 
   // Safe data extraction with defaults
@@ -40,7 +49,8 @@ const Dashboard = () => {
     stats,
     energyDataLength: energyData.length,
     usageDataLength: usageData.length,
-    devicePowers: { acPower, fanPower, lightPower, refrigeratorPower }
+    devicePowers: { acPower, fanPower, lightPower, refrigeratorPower },
+    managedDevices: devices.length
   });
 
   // Simple chart data function
@@ -49,6 +59,24 @@ const Dashboard = () => {
     
     // Return last 20 data points for simplicity
     return energyData.slice(-20);
+  };
+
+  // Handle device toggle
+  const handleDeviceToggle = async (deviceId: string, newState: boolean) => {
+    try {
+      await deviceService.toggleDevice(deviceId, newState);
+      toast({
+        title: "Device Updated",
+        description: `Device state changed to ${newState ? 'ON' : 'OFF'}`,
+      });
+    } catch (error) {
+      console.error('Error toggling device:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update device state",
+        variant: "destructive"
+      });
+    }
   };
 
   // Loading state
@@ -148,6 +176,60 @@ const Dashboard = () => {
               categories={[]}
             />
           </div>
+        </div>
+
+        {/* Device Management Section */}
+        <div className="mb-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Device Management</CardTitle>
+                <Button onClick={() => window.location.href = '/automation'}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Manage Devices
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {devicesLoading ? (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground">Loading devices...</div>
+                </div>
+              ) : devices.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-muted-foreground mb-4">No devices configured</div>
+                  <Button onClick={() => window.location.href = '/automation'}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Your First Device
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {devices.map(device => (
+                    <div key={device.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex-1">
+                        <h3 className="font-medium">{device.name}</h3>
+                        <p className="text-sm text-muted-foreground">{device.type}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
+                            {device.status}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Last updated: {new Date(device.lastUpdated).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={device.state}
+                        onCheckedChange={(checked) => handleDeviceToggle(device.id, checked)}
+                        disabled={device.status === 'offline'}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
         
         {/* Device Status Overview */}

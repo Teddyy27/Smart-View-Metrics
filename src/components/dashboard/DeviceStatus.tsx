@@ -11,14 +11,23 @@ const DeviceStatus = () => {
   const { devices, removeDevice } = useDevices();
   const { toast } = useToast();
 
-  const handleRemoveDevice = (deviceId: string, deviceName: string) => {
-    const success = removeDevice(deviceId);
-    if (success) {
-      toast({
-        title: "Device Removed",
-        description: `${deviceName} has been removed from your devices.`
-      });
-    } else {
+  const handleRemoveDevice = async (deviceId: string, deviceName: string) => {
+    try {
+      const success = await removeDevice(deviceId);
+      if (success) {
+        toast({
+          title: "Device Removed",
+          description: `${deviceName} has been removed from your devices.`
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to remove device",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error removing device:', error);
       toast({
         title: "Error",
         description: "Failed to remove device",

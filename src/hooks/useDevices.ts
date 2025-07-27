@@ -11,7 +11,11 @@ export const useDevices = () => {
       setDevices(devices);
       setLoading(false);
     });
-    return unsubscribe;
+    
+    // Cleanup function
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const addDevice = async (name: string, type: string, togglePath?: string) => {
@@ -22,8 +26,8 @@ export const useDevices = () => {
     return await deviceService.removeDevice(deviceId);
   };
 
-  const updateDeviceStatus = (deviceId: string, status: 'online' | 'offline') => {
-    return deviceService.updateDeviceStatus(deviceId, status);
+  const updateDeviceStatus = async (deviceId: string, status: 'online' | 'offline') => {
+    return await deviceService.updateDeviceStatus(deviceId, status);
   };
 
   const getDevice = (deviceId: string) => {

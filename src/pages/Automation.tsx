@@ -148,14 +148,23 @@ const Automation = () => {
     const device = automationDevices.find(d => d.id === deviceId);
     if (!device) return;
 
-    const success = await removeDevice(deviceId);
-    if (success) {
-      toast({
-        title: "Device Removed",
-        description: `${device.name} has been removed from ${ROOM_NAME}.`,
-        variant: "destructive"
-      });
-    } else {
+    try {
+      const success = await removeDevice(deviceId);
+      if (success) {
+        toast({
+          title: "Device Removed",
+          description: `${device.name} has been removed from ${ROOM_NAME}.`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to remove device",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error removing device:', error);
       toast({
         title: "Error",
         description: "Failed to remove device",
