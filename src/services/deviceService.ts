@@ -25,6 +25,7 @@ class DeviceService {
   private devices: Device[] = [];
   private listeners: ((devices: Device[]) => void)[] = [];
   private firebaseListener: (() => void) | null = null;
+  private isBulkOperation: boolean = false;
 
   constructor() {
     this.initializeFirebaseListener();
@@ -34,6 +35,12 @@ class DeviceService {
     // Listen to the devices node in Firebase
     const devicesRef = ref(db, 'devices');
     this.firebaseListener = onValue(devicesRef, (snapshot) => {
+      // Skip updates during bulk operations to prevent conflicts
+      if (this.isBulkOperation) {
+        console.log('Skipping Firebase listener update during bulk operation');
+        return;
+      }
+
       const data = snapshot.val();
       if (data) {
         // Convert Firebase object to array
@@ -137,6 +144,92 @@ class DeviceService {
     }
   }
 
+  // Remove multiple devices (bulk operation)
+  async removeMultipleDevices(deviceIds: string[]): Promise<{ success: boolean; results: any[] }> {
+    console.log(`Starting bulk removal of ${deviceIds.length} devices`);
+    
+    // Set bulk operation flag to prevent listener conflicts
+    this.isBulkOperation = true;
+    
+    const results = [];
+    
+    try {
+      for (const deviceId of deviceIds) {
+        const result = await this.removeDevice(deviceId);
+        results.push({ deviceId, success: result });
+      }
+      
+      // Wait a moment for Firebase to process all removals
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update local state manually
+      this.devices = this.devices.filter(device => !deviceIds.includes(device.id));
+      this.notifyListeners();
+      
+      const success = results.every(r => r.success);
+      console.log(`Bulk removal completed. Success: ${success}`);
+      
+      return { success, results };
+      
+    } finally {
+      // Re-enable Firebase listener
+      this.isBulkOperation = false;
+    }
+  }
+
+  // Remove all devices (nuclear option)
+  async removeAllDevices(): Promise<{ success: boolean; message: string; count: number }> {
+    try {
+      console.log('🚨 NUCLEAR OPTION: Removing ALL devices');
+      
+      // Set bulk operation flag
+      this.isBulkOperation = true;
+      
+      // Get all current devices
+      const currentDevices = [...this.devices];
+      const deviceIds = currentDevices.map(d => d.id);
+      
+      if (deviceIds.length === 0) {
+        return {
+          success: true,
+          message: 'No devices to remove',
+          count: 0
+        };
+      }
+      
+      console.log(`Removing ${deviceIds.length} devices:`, deviceIds);
+      
+      // Remove all devices from Firebase
+      await remove(ref(db, 'devices'));
+      
+      // Wait for Firebase to process
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Clear local state
+      this.devices = [];
+      this.notifyListeners();
+      
+      console.log(`✅ Successfully removed all ${deviceIds.length} devices`);
+      
+      return {
+        success: true,
+        message: `Successfully removed all ${deviceIds.length} devices`,
+        count: deviceIds.length
+      };
+      
+    } catch (error) {
+      console.error('❌ Failed to remove all devices:', error);
+      return {
+        success: false,
+        message: `Failed to remove all devices: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        count: 0
+      };
+    } finally {
+      // Re-enable Firebase listener
+      this.isBulkOperation = false;
+    }
+  }
+
   // Update device status
   async updateDeviceStatus(deviceId: string, status: 'online' | 'offline'): Promise<boolean> {
     try {
@@ -162,13 +255,10 @@ class DeviceService {
     return this.devices.filter(device => device.type === type);
   }
 
-  // Clear all devices
+  // Clear all devices (legacy method - use removeAllDevices instead)
   async clearDevices(): Promise<void> {
-    try {
-      await remove(ref(db, 'devices'));
-    } catch (error) {
-      console.error('Error clearing devices:', error);
-    }
+    console.warn('clearDevices() is deprecated. Use removeAllDevices() instead.');
+    await this.removeAllDevices();
   }
 
   // Cleanup method to remove Firebase listener

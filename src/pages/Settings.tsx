@@ -402,6 +402,76 @@ const SettingsPage = () => {
     }
   };
 
+  const handleForceRemoveAll = async () => {
+    if (!confirm('🚨 FORCE REMOVAL: This will bypass the device service and directly remove ALL devices from Firebase. Are you absolutely sure?')) {
+      return;
+    }
+
+    try {
+      console.log('🚨 Force removal of all devices');
+      
+      const result = await EmergencyDeviceRemoval.forceRemoveAllDevices();
+      
+      if (result.success) {
+        toast({
+          title: "Force Removal Successful",
+          description: result.message,
+        });
+      } else {
+        toast({
+          title: "Force Removal Failed",
+          description: result.message,
+          variant: "destructive"
+        });
+      }
+      
+      console.log('Force remove all result:', result);
+      
+    } catch (error) {
+      console.error('Force remove all failed:', error);
+      toast({
+        title: "Error",
+        description: "Failed to force remove all devices",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePreventReappearance = async () => {
+    if (!confirm('🔍 This will remove all devices and check if they reappear. Continue?')) {
+      return;
+    }
+
+    try {
+      console.log('🔍 Preventing device reappearance');
+      
+      const result = await EmergencyDeviceRemoval.preventDeviceReappearance();
+      
+      if (result.success) {
+        toast({
+          title: "Prevention Successful",
+          description: result.message,
+        });
+      } else {
+        toast({
+          title: "Devices Reappearing",
+          description: result.message,
+          variant: "destructive"
+        });
+      }
+      
+      console.log('Prevention result:', result);
+      
+    } catch (error) {
+      console.error('Prevention failed:', error);
+      toast({
+        title: "Error",
+        description: "Failed to prevent device reappearance",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleProfileChange = (field: string, value: string) => {
     setProfileForm(prev => ({
       ...prev,
@@ -789,6 +859,22 @@ const SettingsPage = () => {
                     className="w-full"
                   >
                     🚨 Remove ALL Devices (Nuclear Option)
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleForceRemoveAll} 
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    💥 Force Remove ALL Devices (Bypass Service)
+                  </Button>
+                  
+                  <Button 
+                    onClick={handlePreventReappearance} 
+                    variant="outline"
+                    className="w-full"
+                  >
+                    🔍 Check & Prevent Device Reappearance
                   </Button>
                   
                   {testResult && (
