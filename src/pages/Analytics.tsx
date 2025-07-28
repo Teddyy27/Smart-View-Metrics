@@ -15,10 +15,10 @@ const Analytics = () => {
     trackPageAccess('Analytics');
   }, [trackPageAccess]);
 
-  // Helper to format power in kW (divide by 10 for conversion)
-  const toKW = (val: number) => (typeof val === 'number' ? (val / 10 / 1000).toFixed(2) : '0.00');
-  // Helper to format total usage in kWh (divide by 1000 for conversion)
-  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 1000).toFixed(2) : '0.00';
+  // Helper to format power in kW (convert watts to kilowatts) - 3 decimal points
+  const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
+  // Helper to format total usage in kWh (convert watt-hours to kilowatt-hours) - 3 decimal points
+  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 1000).toFixed(3) : '0.000';
 
   // Device summary table columns
   const deviceColumns = [
