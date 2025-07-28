@@ -33,11 +33,11 @@ const Dashboard = () => {
   const energyData = data?.energyData || [];
   const usageData = data?.usageData || [];
 
-  // Get latest device power values safely (divide by 10 for conversion)
+  // Get latest device power values safely (convert watts to kilowatts)
   const getLatestDevicePower = (deviceKey: string) => {
     if (!energyData || energyData.length === 0) return 0;
     const latestData = energyData[energyData.length - 1];
-    return Number(latestData[deviceKey] || 0) / 10; // Divide by 10 for conversion
+    return Number(latestData[deviceKey] || 0) / 1000; // Convert watts to kilowatts
   };
 
   const acPower = getLatestDevicePower('acPower');
@@ -164,7 +164,7 @@ const Dashboard = () => {
                 )
                 .map(item => ({
                   name: item.name,
-                  usage: Number((Number(item.value) / 1000).toFixed(2))
+                  usage: Number((Number(item.value) / 60 / 1000).toFixed(3))
                 }))}
               bars={[
                 {
@@ -243,7 +243,7 @@ const Dashboard = () => {
                   <h4 className="font-medium text-card-foreground">AC</h4>
                   <div className={`w-3 h-3 rounded-full ${acPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">{(acPower / 1000).toFixed(2)} kW</p>
+                <p className="text-2xl font-bold text-card-foreground">{acPower.toFixed(3)} kW</p>
                 <p className="text-sm text-muted-foreground">{acPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
               {/* Fan Status */}
@@ -252,7 +252,7 @@ const Dashboard = () => {
                   <h4 className="font-medium text-card-foreground">Fan</h4>
                   <div className={`w-3 h-3 rounded-full ${fanPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">{(fanPower / 1000).toFixed(2)} kW</p>
+                <p className="text-2xl font-bold text-card-foreground">{fanPower.toFixed(3)} kW</p>
                 <p className="text-sm text-muted-foreground">{fanPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
               {/* Lighting Status */}
@@ -261,7 +261,7 @@ const Dashboard = () => {
                   <h4 className="font-medium text-card-foreground">Lighting</h4>
                   <div className={`w-3 h-3 rounded-full ${lightPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">{(lightPower / 1000).toFixed(2)} kW</p>
+                <p className="text-2xl font-bold text-card-foreground">{lightPower.toFixed(3)} kW</p>
                 <p className="text-sm text-muted-foreground">{lightPower > 0 ? 'On' : 'Off'}</p>
               </div>
               {/* Refrigerator Status */}
@@ -270,7 +270,7 @@ const Dashboard = () => {
                   <h4 className="font-medium text-card-foreground">Refrigerator</h4>
                   <div className={`w-3 h-3 rounded-full ${refrigeratorPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
-                <p className="text-2xl font-bold text-card-foreground">{(refrigeratorPower / 1000).toFixed(2)} kW</p>
+                <p className="text-2xl font-bold text-card-foreground">{refrigeratorPower.toFixed(3)} kW</p>
                 <p className="text-sm text-muted-foreground">{refrigeratorPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
             </div>

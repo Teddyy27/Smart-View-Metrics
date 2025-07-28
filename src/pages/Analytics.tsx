@@ -19,6 +19,12 @@ const Analytics = () => {
   const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
   // Helper to format total usage in kWh (convert watt-minutes to kilowatt-hours) - 3 decimal points
   const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000).toFixed(3) : '0.000';
+  
+  // Helper to format total usage with multipliers and kWh unit
+  const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
+    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
+    return `${(baseValue * multiplier).toFixed(3)} kWh`;
+  };
 
   // Device summary table columns
   const deviceColumns = [
@@ -32,22 +38,22 @@ const Analytics = () => {
     {
       name: 'AC',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].acPower)) : 'N/A',
-      total: data?.energyData ? totalKWh(data.energyData, 'acPower') : 0,
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.3) : '0.000 kWh',
     },
     {
       name: 'Lighting',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].lightPower)) : 'N/A',
-      total: data?.energyData ? totalKWh(data.energyData, 'lightPower') : 0,
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'lightPower', 1) : '0.000 kWh',
     },
     {
       name: 'Fan',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].fanPower)) : 'N/A',
-      total: data?.energyData ? totalKWh(data.energyData, 'fanPower') : 0,
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'fanPower', 1) : '0.000 kWh',
     },
     {
       name: 'Refrigerator',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].refrigeratorPower)) : 'N/A',
-      total: data?.energyData ? totalKWh(data.energyData, 'refrigeratorPower') : 0,
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 0.6) : '0.000 kWh',
     },
   ];
 
@@ -113,25 +119,25 @@ const Analytics = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             title="Total AC Usage"
-            value={deviceData[0].total}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'acPower', 0.3)}
             change={0}
             icon={<Bolt className="h-6 w-6" />}
           />
           <StatCard
             title="Total Lighting Usage"
-            value={deviceData[1].total}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'lightPower', 1)}
             change={0}
             icon={<Zap className="h-6 w-6" />}
           />
           <StatCard
             title="Total Fan Usage"
-            value={deviceData[2].total}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'fanPower', 1)}
             change={0}
             icon={<Gauge className="h-6 w-6" />}
           />
           <StatCard
             title="Total Refrigerator Usage"
-            value={deviceData[3].total}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'refrigeratorPower', 0.6)}
             change={0}
             icon={<Gauge className="h-6 w-6 text-cyan-500" />}
           />
