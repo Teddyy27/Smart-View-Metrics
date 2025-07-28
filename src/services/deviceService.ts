@@ -49,8 +49,8 @@ class DeviceService {
           ...data[id]
         }));
       } else {
-        this.devices = [];
-      }
+      this.devices = [];
+    }
       this.notifyListeners();
     });
   }
@@ -114,7 +114,7 @@ class DeviceService {
       // First, check if the device exists
       const deviceRef = ref(db, `devices/${deviceId}`);
       const snapshot = await get(deviceRef);
-      
+    
       if (!snapshot.exists()) {
         console.error(`Device ${deviceId} does not exist in Firebase`);
         return false;

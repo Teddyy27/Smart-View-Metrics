@@ -149,14 +149,14 @@ const Automation = () => {
     if (!device) return;
 
     try {
-      const success = await removeDevice(deviceId);
-      if (success) {
-        toast({
-          title: "Device Removed",
-          description: `${device.name} has been removed from ${ROOM_NAME}.`,
-          variant: "destructive"
-        });
-      } else {
+    const success = await removeDevice(deviceId);
+    if (success) {
+      toast({
+        title: "Device Removed",
+        description: `${device.name} has been removed from ${ROOM_NAME}.`,
+        variant: "destructive"
+      });
+    } else {
         toast({
           title: "Error",
           description: "Failed to remove device",
