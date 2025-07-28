@@ -28,10 +28,46 @@ const Dashboard = () => {
   // Safe data extraction with defaults
   const stats = data?.stats || {};
   const energyUsage = stats.energyUsage || { value: '0.00 kW', change: 0 };
-  const efficiency = stats.efficiency || { value: '0.00 kW', change: 0 };
   const automationStatus = stats.automationStatus || { value: 'Auto', change: 0 };
   const energyData = data?.energyData || [];
   const usageData = data?.usageData || [];
+
+  // Helper to format total usage with multipliers and kWh unit (same as Analytics)
+  const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
+    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
+    return `${(baseValue * multiplier).toFixed(3)} kWh`;
+  };
+
+  // Helper to get numeric value for calculations
+  const getTotalKWhNumeric = (arr: any[], key: string, multiplier: number = 1) => {
+    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
+    return baseValue * multiplier;
+  };
+  
+  // Calculate peak usage (maximum power at any moment) with proper conversion
+  const getPeakPower = () => {
+    if (!energyData || energyData.length === 0) return 0;
+    
+    let maxTotalPower = 0;
+    energyData.forEach(row => {
+      const acPower = (Number(row.acPower || 0) / 1000) * 0.3; // Convert to kW and apply multiplier
+      const lightingPower = (Number(row.lightPower || 0) / 1000) * 1; // Convert to kW
+      const fanPower = (Number(row.fanPower || 0) / 1000) * 1; // Convert to kW
+      const refrigeratorPower = (Number(row.refrigeratorPower || 0) / 1000) * 0.6; // Convert to kW and apply multiplier
+      
+      const totalPower = acPower + lightingPower + fanPower + refrigeratorPower;
+      maxTotalPower = Math.max(maxTotalPower, totalPower);
+    });
+    
+    return maxTotalPower;
+  };
+  
+  const peakPower = getPeakPower();
+  
+  const efficiency = { 
+    value: `${peakPower.toFixed(3)} kW`, 
+    change: 0 
+  };
 
   // Get latest device power values safely (convert watts to kilowatts)
   const getLatestDevicePower = (deviceKey: string) => {
@@ -158,14 +194,24 @@ const Dashboard = () => {
           <div>
             <BarChart
               title="Device Usage (kWh)"
-              data={usageData
-                .filter((item, index, self) => 
-                  index === self.findIndex(t => t.name === item.name)
-                )
-                .map(item => ({
-                  name: item.name,
-                  usage: Number((Number(item.value) / 60 / 1000).toFixed(3))
-                }))}
+              data={[
+                {
+                  name: 'AC',
+                  usage: getTotalKWhNumeric(energyData, 'acPower', 0.3)
+                },
+                {
+                  name: 'Lighting',
+                  usage: getTotalKWhNumeric(energyData, 'lightPower', 1)
+                },
+                {
+                  name: 'Fan',
+                  usage: getTotalKWhNumeric(energyData, 'fanPower', 1)
+                },
+                {
+                  name: 'Refrigerator',
+                  usage: getTotalKWhNumeric(energyData, 'refrigeratorPower', 0.6)
+                }
+              ]}
               bars={[
                 {
                   key: 'usage',
