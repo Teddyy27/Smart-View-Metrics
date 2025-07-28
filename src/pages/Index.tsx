@@ -187,9 +187,7 @@ const Dashboard = () => {
               ]}
               getChartData={getChartData}
             />
-            <div className="mt-2 text-sm text-card-foreground bg-card p-3 rounded-lg">
-              <strong>Benchmarks:</strong> AC: 3.5kW | Fan: 0.5kW | Lighting: 0.4kW | Refrigerator: 0.3kW | Total: 4.7kW
-            </div>
+
           </div>
           <div>
             <BarChart
