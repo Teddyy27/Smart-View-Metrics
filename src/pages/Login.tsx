@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EyeIcon, EyeOffIcon, Zap } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { auth } from '@/services/firebase';
@@ -16,11 +17,22 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { trackUserLogin, trackUserActivity } from '@/services/userActivityService';
 
+// Available pages for navigation after login
+const availablePages = [
+  { value: '/', label: 'Dashboard', description: 'Main dashboard overview' },
+  { value: '/analytics', label: 'Analytics', description: 'Data analytics and insights' },
+  { value: '/users', label: 'Users', description: 'User management' },
+  { value: '/report', label: 'Report', description: 'Reports and documentation' },
+  { value: '/automation', label: 'Automation', description: 'Automation settings' },
+  { value: '/settings', label: 'Settings', description: 'Application settings' },
+];
+
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [selectedPage, setSelectedPage] = useState('/');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -63,7 +75,7 @@ const Login = () => {
         title: "Success",
         description: "You have been logged in successfully",
       });
-      navigate('/');
+      navigate(selectedPage);
     } catch (error: any) {
       let errorMessage = "An error occurred during login";
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
@@ -206,6 +218,24 @@ const Login = () => {
                         )}
                       </button>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-page">Go to page after login</Label>
+                    <Select value={selectedPage} onValueChange={setSelectedPage}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a page" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePages.map((page) => (
+                          <SelectItem key={page.value} value={page.value}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{page.label}</span>
+                              <span className="text-xs text-muted-foreground">{page.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Logging in..." : "Login"}
