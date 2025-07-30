@@ -37,35 +37,35 @@ const Analytics = () => {
   const deviceData = [
     {
       name: 'AC',
-      latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].acPower)) : 'N/A',
+      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].acPower)) : 'N/A',
       total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.5) : '0.000 kWh',
     },
     {
       name: 'Lights',
-      latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].lightPower)) : 'N/A',
+      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].lightPower)) : 'N/A',
       total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'lightPower', 1) : '0.000 kWh',
     },
     {
       name: 'Fan',
-      latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].fanPower)) : 'N/A',
+      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].fanPower)) : 'N/A',
       total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'fanPower', 1) : '0.000 kWh',
     },
     {
       name: 'Refrigerator',
-      latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].refrigeratorPower)) : 'N/A',
+      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].refrigeratorPower)) : 'N/A',
       total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 1) : '0.000 kWh',
     },
   ];
 
   // Debug: Log the latest data points to see what we're getting
-  if (data?.energyData && data.energyData.length > 0) {
-    const latestData = data.energyData[data.energyData.length - 1];
-    console.log('Analytics - Latest data point:', {
-      timestamp: latestData.name,
-      acPower: latestData.acPower,
-      fanPower: latestData.fanPower,
-      lightPower: latestData.lightPower,
-      refrigeratorPower: latestData.refrigeratorPower
+  if (data?.energyData && data.energyData.length > 5) {
+    const delayedData = data.energyData[data.energyData.length - 6]; // 5 minutes ago
+    console.log('Analytics - 5-minute delayed data point:', {
+      timestamp: delayedData.name,
+      acPower: delayedData.acPower,
+      fanPower: delayedData.fanPower,
+      lightPower: delayedData.lightPower,
+      refrigeratorPower: delayedData.refrigeratorPower
     });
     
     // Also log the last 3 data points to see the trend
@@ -192,7 +192,7 @@ const Analytics = () => {
         {/* Minute-by-Minute Device Data Table */}
         <div className="mb-6">
           <DataTable
-            title="Minute-by-Minute Device Data"
+            title="Minute-by-Minute Device Data (5-min delay)"
             columns={[
               { key: 'date', header: 'Date', sortable: true, render: (_: any, row: any) => parseDateTime(row.name).date },
               { key: 'time', header: 'Time', sortable: true, render: (_: any, row: any) => parseDateTime(row.name).time },
@@ -201,7 +201,7 @@ const Analytics = () => {
               { key: 'lightPower', header: 'Light Power (kW)', sortable: true, render: (val: number) => toKW(val) },
               { key: 'refrigeratorPower', header: 'Refrigerator Power (kW)', sortable: true, render: (val: number) => toKW(val) },
             ]}
-            data={data?.energyData?.slice(-25).reverse() ?? []}
+            data={data?.energyData?.slice(-30, -5).reverse() ?? []}
           />
         </div>
       </div>
