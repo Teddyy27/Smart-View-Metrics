@@ -15,14 +15,15 @@ const Analytics = () => {
     trackPageAccess('Analytics');
   }, [trackPageAccess]);
 
-  // Helper to format power in kW (convert watts to kilowatts) - 3 decimal points
-  const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
+  // Helper to format power in kW (data is already in kW) - 3 decimal points
+  const toKW = (val: number) => (typeof val === 'number' ? val.toFixed(3) : '0.000');
   // Helper to format total usage in kWh (convert watt-minutes to kilowatt-hours) - 3 decimal points
-  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000).toFixed(3) : '0.000';
+  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60).toFixed(3) : '0.000';
   
   // Helper to format total usage with multipliers and kWh unit
   const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
-    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
+    // Data is already in kW, so we only need to divide by 60 to get kWh (not by 1000)
+    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60) : 0;
     return `${(baseValue * multiplier).toFixed(3)} kWh`;
   };
 
@@ -128,10 +129,14 @@ const Analytics = () => {
     usageDataLength: usageData.length,
     acTotal: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
     acTotalKWh: totalKWhWithMultiplier(energyData, 'acPower', 1),
-    // Raw calculation breakdown
+    // Raw calculation breakdown (data is already in kW)
     acRawSum: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
     acDividedBy60: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0) / 60,
-    acDividedBy60And1000: (energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0) / 60 / 1000).toFixed(3),
+    acFinalKWh: (energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0) / 60).toFixed(3),
+    // Check if data is already in kW (values should be small like 0.5, 1.2, etc.)
+    acSampleValues: energyData.slice(0, 5).map(item => item.acPower),
+    acMaxValue: Math.max(...energyData.map(item => item.acPower)),
+    acMinValue: Math.min(...energyData.map(item => item.acPower)),
     firstFewDataPoints: energyData.slice(0, 3).map(item => ({
       name: item.name,
       acPower: item.acPower,
