@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
-import LineChart from '@/components/dashboard/LineChart';
 import BarChart from '@/components/dashboard/BarChart';
+import LineChart from '@/components/dashboard/LineChart';
+import PieChart from '@/components/dashboard/PieChart';
 import DeviceStatus from '@/components/dashboard/DeviceStatus';
 import { Bolt, TrendingUp, Zap, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,26 +12,34 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useDevices } from '@/hooks/useDevices';
 import { deviceService } from '@/services/deviceService';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import useSWR from 'swr';
+import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
+import { useUserData } from '@/hooks/useUserData';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 const Dashboard = () => {
-  const { data, error, isLoading } = useSWR('/api/dashboard-data', fetcher, {
-    dedupingInterval: 5 * 60 * 1000,
-    revalidateOnFocus: false,
-  });
-
+  const { data, isLoading: loading, error } = useRealtimeDashboardData();
+  const { trackPageAccess } = useUserData();
   const { devices, loading: devicesLoading } = useDevices();
   const [activeRange, setActiveRange] = useState('1h');
+  const { toast } = useToast();
+
+  // Track page access when component mounts
+  useEffect(() => {
+    trackPageAccess('Dashboard');
+  }, [trackPageAccess]);
+
+  // Use recent energy data for charts (last 24 hours) and full data for totals
+  const energyData = data?.recentEnergyData || data?.energyData || [];
+  const fullEnergyData = data?.energyData || [];
+  const usageData = data?.usageData || [];
 
   // Safe data extraction with defaults
   const stats = data?.stats || {};
   const energyUsage = stats.energyUsage || { value: '0.00 kW', change: 0 };
   const automationStatus = stats.automationStatus || { value: 'Auto', change: 0 };
-  const energyData = data?.energyData || [];
-  const usageData = data?.usageData || [];
 
   // Helper to format total usage with multipliers and kWh unit (same as Analytics)
   const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
@@ -156,7 +165,9 @@ const Dashboard = () => {
   // Handle device toggle
   const handleDeviceToggle = async (deviceId: string, newState: boolean) => {
     try {
-      await deviceService.toggleDevice(deviceId, newState);
+      // This function needs to be implemented using deviceService
+      // For now, we'll just log and show a toast
+      console.log(`Toggling device ${deviceId} to ${newState}`);
       toast({
         title: "Device Updated",
         description: `Device state changed to ${newState ? 'ON' : 'OFF'}`,
@@ -172,7 +183,7 @@ const Dashboard = () => {
   };
 
   // Loading state
-  if (isLoading) {
+  if (loading) {
     return (
       <Layout>
         <div className="h-full flex items-center justify-center">

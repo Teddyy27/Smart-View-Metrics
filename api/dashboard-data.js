@@ -138,12 +138,12 @@ export default async function handler(req) {
       },
       {
         name: 'AC',
-        value: safeEnergyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
+        value: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
         color: '#3b82f6',
       },
       {
         name: 'Refrigerator',
-        value: safeEnergyData.reduce((sum, row) => sum + (typeof row.refrigeratorPower === 'number' ? row.refrigeratorPower : 0), 0),
+        value: energyData.reduce((sum, row) => sum + (typeof row.refrigeratorPower === 'number' ? row.refrigeratorPower : 0), 0),
         color: '#06b6d4',
       },
       {
@@ -203,7 +203,7 @@ export default async function handler(req) {
           change: 0,
         },
         efficiency: {
-          value: safeEnergyData.length > 0 ? `${(Math.max(...safeEnergyData.map(item => item.totalPower), 0) / 1000).toFixed(2)} kW` : '0.00 kW',
+          value: safeEnergyData.length > 0 ? `${(safeEnergyData.reduce((sum, item) => sum + item.totalPower, 0) / safeEnergyData.length / 1000).toFixed(2)} kW` : '0.00 kW',
           change: 0,
         },
         automationStatus: {
@@ -211,7 +211,8 @@ export default async function handler(req) {
           change: 0,
         },
       },
-      energyData: safeEnergyData,
+      energyData: energyData, // Use full historical data for totals
+      recentEnergyData: safeEnergyData, // Use filtered data for charts
       usageData,
       revenueData,
       alertsData,
