@@ -198,7 +198,7 @@ const Dashboard = () => {
                   usage: getTotalKWhNumeric(energyData, 'acPower', 1)
                 },
                 {
-                  name: 'Lighting',
+                  name: 'Lights',
                   usage: getTotalKWhNumeric(energyData, 'lightPower', 1)
                 },
                 {
@@ -299,10 +299,10 @@ const Dashboard = () => {
                 <p className="text-2xl font-bold text-card-foreground">{fanPower.toFixed(3)} kW</p>
                 <p className="text-sm text-muted-foreground">{fanPower > 0 ? 'Running' : 'Idle'}</p>
               </div>
-              {/* Lighting Status */}
+              {/* Lights Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Lighting</h4>
+                  <h4 className="font-medium text-card-foreground">Lights</h4>
                   <div className={`w-3 h-3 rounded-full ${lightPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                 </div>
                 <p className="text-2xl font-bold text-card-foreground">{lightPower.toFixed(3)} kW</p>

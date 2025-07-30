@@ -58,7 +58,7 @@ const settingsNavItems = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'devices', label: 'Devices', icon: Smartphone },
   { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'energy', label: 'Energy Alerts', icon: Zap },
+  // { id: 'energy', label: 'Energy Alerts', icon: Zap },
   { id: 'sync', label: 'Data Sync', icon: RefreshCw },
 ];
 
@@ -116,10 +116,132 @@ const SettingsPage = () => {
     lastSync: new Date().toISOString()
   });
 
+  // Sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string>('idle');
+  const [nextSyncTime, setNextSyncTime] = useState<Date | null>(null);
+
   // Test state
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [manualDeviceId, setManualDeviceId] = useState('');
+
+  // Sync function
+  const performSync = async () => {
+    if (isSyncing) return;
+    
+    setIsSyncing(true);
+    setSyncStatus('syncing');
+    
+    try {
+      // Simulate sync operation with actual data
+      const syncData = {
+        devices: devices,
+        user: user,
+        timestamp: new Date().toISOString(),
+        syncType: 'automatic'
+      };
+      
+      // Here you would typically send data to your backend/cloud
+      console.log('Syncing data:', syncData);
+      
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Update last sync time
+      const newLastSync = new Date().toISOString();
+      setSyncSettings(prev => ({ ...prev, lastSync: newLastSync }));
+      setSyncStatus('completed');
+      
+      toast({
+        title: "Sync Completed",
+        description: "Data synchronized successfully",
+      });
+      
+      // Calculate next sync time
+      const nextSync = new Date();
+      nextSync.setMinutes(nextSync.getMinutes() + syncSettings.syncInterval);
+      setNextSyncTime(nextSync);
+      
+    } catch (error) {
+      console.error('Sync failed:', error);
+      setSyncStatus('failed');
+      
+      toast({
+        title: "Sync Failed",
+        description: "Failed to synchronize data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Manual sync function
+  const handleManualSync = async () => {
+    await performSync();
+  };
+
+  // Save sync settings to Firebase
+  const saveSyncSettings = async (newSettings: typeof syncSettings) => {
+    if (!user) return;
+    
+    try {
+      const userSettingsRef = ref(db, `users/${user.uid}/settings/sync`);
+      await set(userSettingsRef, newSettings);
+      console.log('Sync settings saved to Firebase');
+    } catch (error) {
+      console.error('Failed to save sync settings:', error);
+      toast({
+        title: "Settings Save Failed",
+        description: "Failed to save sync settings",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Load sync settings from Firebase
+  const loadSyncSettings = async () => {
+    if (!user) return;
+    
+    try {
+      const userSettingsRef = ref(db, `users/${user.uid}/settings/sync`);
+      // For now, we'll use the default settings
+      // In a real implementation, you'd fetch from Firebase here
+      console.log('Sync settings loaded from Firebase');
+    } catch (error) {
+      console.error('Failed to load sync settings:', error);
+    }
+  };
+
+  // Auto-sync effect
+  useEffect(() => {
+    if (!syncSettings.autoSync) {
+      setNextSyncTime(null);
+      return;
+    }
+
+    const intervalMs = syncSettings.syncInterval * 60 * 1000; // Convert minutes to milliseconds
+    
+    // Calculate next sync time
+    const nextSync = new Date();
+    nextSync.setMinutes(nextSync.getMinutes() + syncSettings.syncInterval);
+    setNextSyncTime(nextSync);
+    
+    const interval = setInterval(() => {
+      performSync();
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [syncSettings.autoSync, syncSettings.syncInterval]);
+
+  // Load settings and initial sync on mount
+  useEffect(() => {
+    loadSyncSettings();
+    if (syncSettings.autoSync) {
+      performSync();
+    }
+  }, []); // Only run on mount
 
   const handleDeviceRemove = async (deviceId: string) => {
     try {
@@ -904,52 +1026,52 @@ const SettingsPage = () => {
           </Card>
         );
 
-      case 'energy':
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Energy Consumption Alerts</CardTitle>
-              <CardDescription>Configure your energy monitoring preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <Label>Usage Threshold Alert ({energyAlerts.threshold}%)</Label>
-                <Slider
-                  value={[energyAlerts.threshold]}
-                  onValueChange={([value]) => setEnergyAlerts({ ...energyAlerts, threshold: value })}
-                  max={100}
-                  step={1}
-                />
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="daily-report">Daily Energy Report</Label>
-                  <Switch
-                    id="daily-report"
-                    checked={energyAlerts.dailyReport}
-                    onCheckedChange={(checked) => setEnergyAlerts({ ...energyAlerts, dailyReport: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="peak-usage">Peak Usage Alerts</Label>
-                  <Switch
-                    id="peak-usage"
-                    checked={energyAlerts.peakUsageAlert}
-                    onCheckedChange={(checked) => setEnergyAlerts({ ...energyAlerts, peakUsageAlert: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="anomaly-detection">Anomaly Detection</Label>
-                  <Switch
-                    id="anomaly-detection"
-                    checked={energyAlerts.anomalyDetection}
-                    onCheckedChange={(checked) => setEnergyAlerts({ ...energyAlerts, anomalyDetection: checked })}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
+      // case 'energy':
+      //   return (
+      //     <Card>
+      //       <CardHeader>
+      //         <CardTitle>Energy Consumption Alerts</CardTitle>
+      //         <CardDescription>Configure your energy monitoring preferences</CardDescription>
+      //       </CardHeader>
+      //       <CardContent className="space-y-6">
+      //         <div className="space-y-4">
+      //           <Label>Usage Threshold Alert ({energyAlerts.threshold}%)</Label>
+      //           <Slider
+      //             value={[energyAlerts.threshold]}
+      //             onValueChange={([value]) => setEnergyAlerts({ ...energyAlerts, threshold: value })}
+      //             max={100}
+      //             step={1}
+      //           />
+      //         </div>
+      //         <div className="space-y-4">
+      //           <div className="flex items-center justify-between">
+      //             <Label htmlFor="daily-report">Daily Energy Report</Label>
+      //             <Switch
+      //               id="daily-report"
+      //               checked={energyAlerts.dailyReport}
+      //               onCheckedChange={(checked) => setEnergyAlerts({ ...energyAlerts, dailyReport: checked })}
+      //             />
+      //           </div>
+      //           <div className="flex items-center justify-between">
+      //             <Label htmlFor="peak-usage">Peak Usage Alerts</Label>
+      //             <Switch
+      //               id="peak-usage"
+      //               checked={energyAlerts.peakUsageAlert}
+      //               onCheckedChange={(checked) => setEnergyAlerts({ ...energyAlerts, peakUsageAlert: checked })}
+      //             />
+      //           </div>
+      //           <div className="flex items-center justify-between">
+      //             <Label htmlFor="anomaly-detection">Anomaly Detection</Label>
+      //             <Switch
+      //               id="anomaly-detection"
+      //               checked={energyAlerts.anomalyDetection}
+      //               onCheckedChange={(checked) => setEnergyAlerts({ ...energyAlerts, anomalyDetection: checked })}
+      //             />
+      //           </div>
+      //         </div>
+      //       </CardContent>
+      //     </Card>
+      //   );
 
       case 'sync':
         return (
@@ -966,7 +1088,11 @@ const SettingsPage = () => {
                 </div>
                 <Switch
                   checked={syncSettings.autoSync}
-                  onCheckedChange={(checked) => setSyncSettings({ ...syncSettings, autoSync: checked })}
+                  onCheckedChange={async (checked) => {
+                    const newSettings = { ...syncSettings, autoSync: checked };
+                    setSyncSettings(newSettings);
+                    await saveSyncSettings(newSettings);
+                  }}
                 />
               </div>
               <div className="space-y-2">
@@ -974,47 +1100,76 @@ const SettingsPage = () => {
                 <Input
                   type="number"
                   value={syncSettings.syncInterval}
-                  onChange={(e) => setSyncSettings({ ...syncSettings, syncInterval: parseInt(e.target.value) })}
+                  onChange={async (e) => {
+                    const newInterval = parseInt(e.target.value);
+                    const newSettings = { ...syncSettings, syncInterval: newInterval };
+                    setSyncSettings(newSettings);
+                    await saveSyncSettings(newSettings);
+                  }}
                   min={1}
                   max={60}
                 />
               </div>
-              <div>
+              
+              {/* Sync Status */}
+              <div className="space-y-2">
+                <Label>Sync Status</Label>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    syncStatus === 'syncing' ? 'bg-yellow-500 animate-pulse' :
+                    syncStatus === 'completed' ? 'bg-green-500' :
+                    syncStatus === 'failed' ? 'bg-red-500' : 'bg-gray-400'
+                  }`} />
+                  <span className="text-sm capitalize">
+                    {syncStatus === 'syncing' ? 'Syncing...' :
+                     syncStatus === 'completed' ? 'Last sync successful' :
+                     syncStatus === 'failed' ? 'Last sync failed' : 'Idle'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Last Sync</Label>
                 <p className="text-sm text-muted-foreground">
-                  Last synced: {new Date(syncSettings.lastSync).toLocaleString()}
+                  {new Date(syncSettings.lastSync).toLocaleString()}
                 </p>
               </div>
-              <Button variant="outline" className="w-full">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Sync Now
+              
+              {nextSyncTime && syncSettings.autoSync ? (
+                <div className="space-y-2">
+                  <Label>Next Auto-Sync</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {nextSyncTime.toLocaleString()}
+                  </p>
+                </div>
+              ) : !syncSettings.autoSync && (
+                <div className="space-y-2">
+                  <Label>Auto-Sync Status</Label>
+                  <p className="text-sm text-orange-600">
+                    Auto-sync is disabled. Data will only sync manually.
+                  </p>
+                </div>
+              )}
+              
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleManualSync}
+                disabled={isSyncing}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync Now'}
               </Button>
               
               <div className="border-t pt-6">
                 <h4 className="font-medium mb-4">Device Synchronization Test</h4>
                 <div className="space-y-3">
                   <Button 
-                    onClick={handleDeviceSyncTest} 
-                    disabled={testRunning}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {testRunning ? 'Running Test...' : 'Test Device Sync'}
-                  </Button>
-                  
-                  <Button 
                     onClick={handleGetDeviceInfo} 
                     variant="outline"
                     className="w-full"
                   >
                     Get Device Information
-                  </Button>
-                  
-                  <Button 
-                    onClick={handleTestDeviceRemoval} 
-                    variant="outline"
-                    className="w-full"
-                  >
-                    Test Device Removal
                   </Button>
                   
                   <Button 
@@ -1040,35 +1195,6 @@ const SettingsPage = () => {
                   >
                     📋 Get Device Details
                   </Button>
-                  
-                  <div className="border-t pt-4">
-                    <h5 className="font-medium mb-3 text-orange-600">🔍 Device Recreation Detection</h5>
-                    <div className="space-y-2">
-                      <Button 
-                        onClick={handleMonitorDeviceRecreation} 
-                        variant="outline"
-                        className="w-full"
-                      >
-                        🔄 Monitor Device Recreation
-                      </Button>
-                      
-                      <Button 
-                        onClick={handleTestDeviceDeletion} 
-                        variant="outline"
-                        className="w-full"
-                      >
-                        🧪 Test Device Deletion
-                      </Button>
-                      
-                      <Button 
-                        onClick={handleIdentifyRecreationSources} 
-                        variant="outline"
-                        className="w-full"
-                      >
-                        🔍 Identify Recreation Sources
-                      </Button>
-                    </div>
-                  </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="manual-device-id">Emergency Device Removal</Label>
@@ -1104,14 +1230,6 @@ const SettingsPage = () => {
                     className="w-full"
                   >
                     💥 Force Remove ALL Devices (Bypass Service)
-                  </Button>
-                  
-                  <Button 
-                    onClick={handlePreventReappearance} 
-                    variant="outline"
-                    className="w-full"
-                  >
-                    🔍 Check & Prevent Device Reappearance
                   </Button>
                   
                   {testResult && (

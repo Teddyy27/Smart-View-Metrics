@@ -1,9 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import LineChart from '@/components/dashboard/LineChart';
+import BarChart from '@/components/dashboard/BarChart';
+import PieChart from '@/components/dashboard/PieChart';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { TrendingUp, TrendingDown, Zap, DollarSign, Calendar } from 'lucide-react';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
@@ -29,6 +34,10 @@ interface DailyEnergyData {
   name: string;
   actualTotal: number;
   predictedTotal: number;
+  acUsage: number;
+  lightsUsage: number;
+  fanUsage: number;
+  refrigeratorUsage: number;
   [key: string]: string | number;
 }
 
@@ -145,27 +154,31 @@ const Report = () => {
 
       // Convert to chart format using Analytics page logic
       const chartData = Object.entries(dailyTotals).map(([date, data]) => {
-        // Apply Analytics page multipliers and conversion
-        const acKWh = (data.acTotal / 60 / 1000) * 0.3; // AC multiplier 0.3
-        const lightingKWh = (data.lightingTotal / 60 / 1000) * 1; // No multiplier
-        const fanKWh = (data.fanTotal / 60 / 1000) * 1; // No multiplier
-        const refrigeratorKWh = (data.refrigeratorTotal / 60 / 1000) * 0.6; // Refrigerator multiplier 0.6
+        // Apply Analytics page logic (no multipliers now)
+        const acKWh = (data.acTotal / 60 / 1000);
+        const lightingKWh = (data.lightingTotal / 60 / 1000);
+        const fanKWh = (data.fanTotal / 60 / 1000);
+        const refrigeratorKWh = (data.refrigeratorTotal / 60 / 1000);
         
         const actualTotal = acKWh + lightingKWh + fanKWh + refrigeratorKWh;
         
         return {
           name: date, // Keep original date format for sorting
           actualTotal: actualTotal,
-          predictedTotal: predictedDailyTotal
+          predictedTotal: predictedDailyTotal,
+          acUsage: acKWh,
+          lightsUsage: lightingKWh,
+          fanUsage: fanKWh,
+          refrigeratorUsage: refrigeratorKWh
         };
       });
 
-      // Sort by date and get the last 5 days (oldest first for correct X-axis order)
+      // Sort by date and get the last 7 days (oldest first for correct X-axis order)
       const sortedData = chartData.sort((a, b) => a.name.localeCompare(b.name));
-      const last5Days = sortedData.slice(-5);
+      const last7Days = sortedData.slice(-7);
       
       // Add predictive values for missing days and format dates
-      const enhancedData = last5Days.map((day, index) => {
+      const enhancedData = last7Days.map((day, index) => {
         // Create more realistic predictive variation
         const basePrediction = predictedDailyTotal;
         
@@ -300,25 +313,73 @@ const Report = () => {
     };
   }, [user, authLoading]);
 
+  // Calculate summary statistics
+  const calculateSummaryStats = () => {
+    if (dailyEnergyData.length === 0) return null;
+
+    const actualTotals = dailyEnergyData.map(d => d.actualTotal);
+    const predictedTotals = dailyEnergyData.map(d => d.predictedTotal);
+
+    const avgActual = actualTotals.reduce((a, b) => a + b, 0) / actualTotals.length;
+    const avgPredicted = predictedTotals.reduce((a, b) => a + b, 0) / predictedTotals.length;
+    const maxActual = Math.max(...actualTotals);
+    const minActual = Math.min(...actualTotals);
+    const variance = ((avgActual - avgPredicted) / avgPredicted) * 100;
+
+    return {
+      avgActual: avgActual.toFixed(2),
+      avgPredicted: avgPredicted.toFixed(2),
+      maxActual: maxActual.toFixed(2),
+      minActual: minActual.toFixed(2),
+      variance: variance.toFixed(1),
+      isOverBudget: variance > 0
+    };
+  };
+
+  // Calculate device breakdown for pie chart
+  const calculateDeviceBreakdown = () => {
+    if (dailyEnergyData.length === 0) return [];
+
+    const totalAC = dailyEnergyData.reduce((sum, day) => sum + day.acUsage, 0);
+    const totalLighting = dailyEnergyData.reduce((sum, day) => sum + day.lightsUsage, 0);
+    const totalFan = dailyEnergyData.reduce((sum, day) => sum + day.fanUsage, 0);
+    const totalRefrigerator = dailyEnergyData.reduce((sum, day) => sum + day.refrigeratorUsage, 0);
+
+    return [
+      { name: 'AC', value: totalAC, color: '#3b82f6' },
+      { name: 'Lights', value: totalLighting, color: '#8b5cf6' },
+      { name: 'Fan', value: totalFan, color: '#10b981' },
+      { name: 'Refrigerator', value: totalRefrigerator, color: '#06b6d4' }
+    ].filter(item => item.value > 0);
+  };
+
   // PDF Export
   const handleExportPDF = () => {
     if (reportRef.current) {
-      html2pdf().from(reportRef.current).save('report.pdf');
+      html2pdf().from(reportRef.current).save('smartview_report.pdf');
     }
   };
 
   // CSV Export
   const handleExportCSV = () => {
     const csvRows = [
-      ['Date', 'Actual Total (kWh)', 'Predicted Total (kWh)'],
-      ...dailyEnergyData.map(d => [d.name, d.actualTotal.toFixed(2), d.predictedTotal.toFixed(2)]),
+      ['Date', 'Actual Total (kWh)', 'Predicted Total (kWh)', 'AC (kWh)', 'Lights (kWh)', 'Fan (kWh)', 'Refrigerator (kWh)'],
+      ...dailyEnergyData.map(d => [
+        d.name, 
+        d.actualTotal.toFixed(2), 
+        d.predictedTotal.toFixed(2),
+        d.acUsage.toFixed(2),
+        d.lightsUsage.toFixed(2),
+        d.fanUsage.toFixed(2),
+        d.refrigeratorUsage.toFixed(2)
+      ]),
     ];
     const csvContent = csvRows.map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'daily_energy.csv';
+    a.download = 'smartview_energy_report.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -327,6 +388,9 @@ const Report = () => {
   const handlePrint = () => {
     window.print();
   };
+
+  const summaryStats = calculateSummaryStats();
+  const deviceBreakdown = calculateDeviceBreakdown();
 
   if (loading) {
     return (
@@ -354,55 +418,157 @@ const Report = () => {
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto py-8">
+      <div className="max-w-7xl mx-auto py-8">
         {/* Export/Print Buttons */}
-        <div className="flex flex-wrap gap-2 mb-4 print:hidden">
-          <button className="bg-primary text-white px-3 py-1 rounded" onClick={handleExportPDF}>Export PDF</button>
-          <button className="bg-primary text-white px-3 py-1 rounded" onClick={handleExportCSV}>Export CSV</button>
-          <button className="bg-primary text-white px-3 py-1 rounded" onClick={handlePrint}>Print</button>
+        <div className="flex flex-wrap gap-2 mb-6 print:hidden">
+          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90" onClick={handleExportPDF}>
+            Export PDF
+          </button>
+          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90" onClick={handleExportCSV}>
+            Export CSV
+          </button>
+          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90" onClick={handlePrint}>
+            Print Report
+          </button>
         </div>
         
         <div ref={reportRef}>
-          {/* Predicted Bill */}
-          <div className="bg-card rounded-lg p-4 mb-6 shadow">
-            <h2 className="text-2xl font-bold mb-2">Predicted Bill</h2>
-            <div className="text-4xl font-extrabold text-primary">₹{predictedData.current_month_bill.predicted_bill.toLocaleString()}</div>
-            <p className="text-sm text-muted-foreground mt-1">{predictedData.current_month_bill.month}</p>
+          {/* Header Section */}
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold mb-2">SmartView Energy Report</h1>
+            <p className="text-muted-foreground">Comprehensive energy consumption analysis and predictions</p>
           </div>
 
-          {/* Simple Energy Graph */}
-          <div className="bg-card rounded-lg p-6 shadow mb-6">
-            <h3 className="text-lg font-semibold mb-4">Daily Energy Usage</h3>
-            {dailyEnergyData.length > 0 ? (
-              <LineChart
-                title="Daily Energy Usage (Last 5 Days)"
-                data={dailyEnergyData}
-                lines={[
-                  { key: 'actualTotal', color: '#3b82f6', name: 'Actual Total (kWh)' },
-                  { key: 'predictedTotal', color: '#10b981', name: 'Predicted Total (kWh)' }
-                ]}
-                timeRanges={[]}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-64 text-muted-foreground">
-                No energy data available
-              </div>
-            )}
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Current Month Bill</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₹{predictedData.current_month_bill.predicted_bill.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">{predictedData.current_month_bill.month}</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Predicted Energy</CardTitle>
+                <Zap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{predictedData.current_month_bill.predicted_energy_kwh.toFixed(2)} kWh</div>
+                <p className="text-xs text-muted-foreground">Current Month</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Next Month Forecast</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₹{predictedData.next_month_forecast.predicted_bill.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">{predictedData.next_month_forecast.month} {predictedData.next_month_forecast.year}</p>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Summary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-card rounded-lg p-4 shadow">
-              <h3 className="text-base font-semibold">Predicted Energy (Current Month)</h3>
-              <div className="text-xl font-bold">{predictedData.current_month_bill.predicted_energy_kwh.toFixed(2)} kWh</div>
-              <p className="text-sm text-muted-foreground">{predictedData.current_month_bill.month}</p>
-            </div>
-            <div className="bg-card rounded-lg p-4 shadow">
-              <h3 className="text-base font-semibold">Predicted Bill (Next Month)</h3>
-              <div className="text-xl font-bold">₹{predictedData.next_month_forecast.predicted_bill.toLocaleString()}</div>
-              <p className="text-sm text-muted-foreground">{predictedData.next_month_forecast.month} {predictedData.next_month_forecast.year}</p>
-            </div>
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Device Breakdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Energy Consumption by Device</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {deviceBreakdown.length > 0 ? (
+                  <PieChart
+                    title=""
+                    data={deviceBreakdown}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-muted-foreground">
+                    No device data available
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Device Comparison Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Device Usage Comparison (Last 7 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dailyEnergyData.length > 0 ? (
+                  <BarChart
+                    title=""
+                    data={[
+                      {
+                        name: 'AC',
+                        usage: dailyEnergyData.reduce((sum, day) => sum + day.acUsage, 0)
+                      },
+                      {
+                        name: 'Lights',
+                        usage: dailyEnergyData.reduce((sum, day) => sum + day.lightsUsage, 0)
+                      },
+                      {
+                        name: 'Fan',
+                        usage: dailyEnergyData.reduce((sum, day) => sum + day.fanUsage, 0)
+                      },
+                      {
+                        name: 'Refrigerator',
+                        usage: dailyEnergyData.reduce((sum, day) => sum + day.refrigeratorUsage, 0)
+                      }
+                    ]}
+                    bars={[
+                      {
+                        key: 'usage',
+                        color: '#3b82f6',
+                        name: 'Total Usage (kWh)'
+                      }
+                    ]}
+                    categories={[]}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-muted-foreground">
+                    No device data available
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Summary Statistics */}
+          {summaryStats && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Usage Statistics (Last 7 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{summaryStats.avgActual}</div>
+                    <div className="text-sm text-muted-foreground">Avg Daily Usage (kWh)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">{summaryStats.avgPredicted}</div>
+                    <div className="text-sm text-muted-foreground">Avg Predicted (kWh)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">{summaryStats.maxActual}</div>
+                    <div className="text-sm text-muted-foreground">Peak Usage (kWh)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-600">{summaryStats.minActual}</div>
+                    <div className="text-sm text-muted-foreground">Min Usage (kWh)</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </Layout>

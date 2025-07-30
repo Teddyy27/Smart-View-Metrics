@@ -41,7 +41,7 @@ const Analytics = () => {
       total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 1) : '0.000 kWh',
     },
     {
-      name: 'Lighting',
+      name: 'Lights',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].lightPower)) : 'N/A',
       total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'lightPower', 1) : '0.000 kWh',
     },
@@ -124,7 +124,7 @@ const Analytics = () => {
             icon={<Bolt className="h-6 w-6" />}
           />
           <StatCard
-            title="Total Lighting Usage"
+            title="Total Lights Usage"
             value={totalKWhWithMultiplier(data?.energyData || [], 'lightPower', 1)}
             change={0}
             icon={<Zap className="h-6 w-6" />}

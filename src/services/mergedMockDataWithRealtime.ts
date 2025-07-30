@@ -92,7 +92,7 @@ export const generateMockData = (): DashboardData => {
   const generateUsageData = (): UsageDataPoint[] => {
     return [
       { name: 'HVAC', value: 40, color: '#3b82f6' },
-      { name: 'Lighting', value: 20, color: '#8b5cf6' },
+      { name: 'Lights', value: 20, color: '#8b5cf6' },
       { name: 'Equipment', value: 25, color: '#10b981' },
       { name: 'Other', value: 15, color: '#ef4444' }
     ];
@@ -115,7 +115,7 @@ export const generateMockData = (): DashboardData => {
 
   // Generate alerts data
   const generateAlertsData = (): AlertRecord[] => {
-    const systems = ['HVAC', 'Lighting', 'Security', 'Energy'];
+    const systems = ['HVAC', 'Lights', 'Security', 'Energy'];
     const locations = ['Floor 1', 'Floor 2', 'Basement', 'Exterior'];
     const messages = [
       'High energy consumption detected',

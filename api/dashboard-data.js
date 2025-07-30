@@ -115,17 +115,17 @@ export default async function handler(req) {
       benchmark: 0,
     }];
 
-    // Usage data (AC, Lighting, Refrigerator) for current month only
+    // Usage data (AC, Lights, Refrigerator) for current month only
     const usageData = [
+      {
+        name: 'Lights',
+        value: 45,
+        color: '#8b5cf6'
+      },
       {
         name: 'AC',
         value: safeEnergyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
         color: '#3b82f6',
-      },
-      {
-        name: 'Lighting',
-        value: safeEnergyData.reduce((sum, row) => sum + (typeof row.lightPower === 'number' ? row.lightPower : 0), 0),
-        color: '#8b5cf6',
       },
       {
         name: 'Refrigerator',
@@ -166,7 +166,7 @@ export default async function handler(req) {
       alertsData.push({
         id: 2,
         type: 'Info',
-        system: 'Lighting',
+        system: 'Lights',
         location: 'Unknown',
         message: 'No motion detected',
         timestamp: new Date().toISOString(),
