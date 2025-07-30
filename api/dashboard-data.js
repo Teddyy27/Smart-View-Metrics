@@ -6,7 +6,12 @@ let cache = {
   lastFetched: 0
 };
 
+let requestCount = 0;
+
 export default async function handler(req) {
+  requestCount++;
+  console.log(`API Request #${requestCount} at ${new Date().toISOString()}`);
+  
   const now = Date.now();
 
   // Cache for 30 seconds (30000 ms) - reduced from 5 minutes
@@ -107,7 +112,16 @@ export default async function handler(req) {
       dataPoints: energyData.length,
       acTotal,
       acTotalKWh,
-      acSampleValues: energyData.slice(0, 3).map(item => ({ name: item.name, acPower: item.acPower }))
+      acSampleValues: energyData.slice(0, 3).map(item => ({ name: item.name, acPower: item.acPower })),
+      // Check if data is being processed multiple times
+      uniqueTimestamps: new Set(energyData.map(item => item.name)).size,
+      totalTimestamps: energyData.length,
+      // Check for any anomalies
+      acPowerRange: {
+        min: Math.min(...energyData.map(item => item.acPower)),
+        max: Math.max(...energyData.map(item => item.acPower)),
+        avg: energyData.reduce((sum, item) => sum + item.acPower, 0) / energyData.length
+      }
     });
 
     // Filter data for recent time periods (last 24 hours for better 1h/24h views)
