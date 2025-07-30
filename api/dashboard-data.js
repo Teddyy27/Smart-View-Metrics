@@ -51,7 +51,11 @@ export default async function handler(req) {
       acSample: Object.keys(acLogs).slice(0, 5),
       fanSample: Object.keys(fanLogs).slice(0, 5),
       lightSample: Object.keys(lightLogs).slice(0, 5),
-      refrigeratorSample: Object.keys(refrigeratorLogs).slice(0, 5)
+      refrigeratorSample: Object.keys(refrigeratorLogs).slice(0, 5),
+      // Sample actual values
+      acSampleValues: Object.keys(acLogs).slice(0, 3).map(ts => ({ timestamp: ts, value: acLogs[ts] })),
+      fanSampleValues: Object.keys(fanLogs).slice(0, 3).map(ts => ({ timestamp: ts, value: fanLogs[ts] })),
+      lightSampleValues: Object.keys(lightLogs).slice(0, 3).map(ts => ({ timestamp: ts, value: lightLogs[ts] }))
     });
 
     const allTimestamps = Array.from(
@@ -64,6 +68,14 @@ export default async function handler(req) {
     ).sort();
 
     console.log('Total timestamps found:', allTimestamps.length);
+    
+    // Check for duplicate timestamps
+    const timestampCounts = {};
+    [...Object.keys(acLogs), ...Object.keys(fanLogs), ...Object.keys(lightLogs), ...Object.keys(refrigeratorLogs)].forEach(ts => {
+      timestampCounts[ts] = (timestampCounts[ts] || 0) + 1;
+    });
+    const duplicates = Object.entries(timestampCounts).filter(([ts, count]) => count > 1);
+    console.log('Duplicate timestamps found:', duplicates.length, duplicates.slice(0, 5));
 
     const energyData = allTimestamps.map((ts) => {
       const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;

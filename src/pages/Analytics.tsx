@@ -128,6 +128,10 @@ const Analytics = () => {
     usageDataLength: usageData.length,
     acTotal: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
     acTotalKWh: totalKWhWithMultiplier(energyData, 'acPower', 1),
+    // Raw calculation breakdown
+    acRawSum: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
+    acDividedBy60: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0) / 60,
+    acDividedBy60And1000: (energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0) / 60 / 1000).toFixed(3),
     firstFewDataPoints: energyData.slice(0, 3).map(item => ({
       name: item.name,
       acPower: item.acPower,
