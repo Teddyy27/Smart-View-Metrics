@@ -38,7 +38,7 @@ const Analytics = () => {
     {
       name: 'AC',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].acPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.3) : '0.000 kWh',
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 1) : '0.000 kWh',
     },
     {
       name: 'Lighting',
@@ -53,7 +53,7 @@ const Analytics = () => {
     {
       name: 'Refrigerator',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].refrigeratorPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 0.6) : '0.000 kWh',
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 1) : '0.000 kWh',
     },
   ];
 
@@ -119,7 +119,7 @@ const Analytics = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             title="Total AC Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'acPower', 0.3)}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'acPower', 1)}
             change={0}
             icon={<Bolt className="h-6 w-6" />}
           />
@@ -137,7 +137,7 @@ const Analytics = () => {
           />
           <StatCard
             title="Total Refrigerator Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'refrigeratorPower', 0.6)}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'refrigeratorPower', 1)}
             change={0}
             icon={<Gauge className="h-6 w-6 text-cyan-500" />}
           />

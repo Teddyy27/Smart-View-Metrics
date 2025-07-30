@@ -50,10 +50,10 @@ const Dashboard = () => {
     
     let maxTotalPower = 0;
     energyData.forEach(row => {
-      const acPower = (Number(row.acPower || 0) / 1000) * 0.3; // Convert to kW and apply multiplier
-      const lightingPower = (Number(row.lightPower || 0) / 1000) * 1; // Convert to kW
-      const fanPower = (Number(row.fanPower || 0) / 1000) * 1; // Convert to kW
-      const refrigeratorPower = (Number(row.refrigeratorPower || 0) / 1000) * 0.6; // Convert to kW and apply multiplier
+      const acPower = (Number(row.acPower || 0) / 1000); // Convert to kW
+      const lightingPower = (Number(row.lightPower || 0) / 1000); // Convert to kW
+      const fanPower = (Number(row.fanPower || 0) / 1000); // Convert to kW
+      const refrigeratorPower = (Number(row.refrigeratorPower || 0) / 1000); // Convert to kW
       
       const totalPower = acPower + lightingPower + fanPower + refrigeratorPower;
       maxTotalPower = Math.max(maxTotalPower, totalPower);
@@ -195,7 +195,7 @@ const Dashboard = () => {
               data={[
                 {
                   name: 'AC',
-                  usage: getTotalKWhNumeric(energyData, 'acPower', 0.3)
+                  usage: getTotalKWhNumeric(energyData, 'acPower', 1)
                 },
                 {
                   name: 'Lighting',
@@ -207,7 +207,7 @@ const Dashboard = () => {
                 },
                 {
                   name: 'Refrigerator',
-                  usage: getTotalKWhNumeric(energyData, 'refrigeratorPower', 0.6)
+                  usage: getTotalKWhNumeric(energyData, 'refrigeratorPower', 1)
                 }
               ]}
               bars={[
