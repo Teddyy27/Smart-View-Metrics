@@ -47,7 +47,11 @@ export default async function handler(req) {
       ac: Object.keys(acLogs).length,
       fan: Object.keys(fanLogs).length,
       light: Object.keys(lightLogs).length,
-      refrigerator: Object.keys(refrigeratorLogs).length
+      refrigerator: Object.keys(refrigeratorLogs).length,
+      acSample: Object.keys(acLogs).slice(0, 5),
+      fanSample: Object.keys(fanLogs).slice(0, 5),
+      lightSample: Object.keys(lightLogs).slice(0, 5),
+      refrigeratorSample: Object.keys(refrigeratorLogs).slice(0, 5)
     });
 
     const allTimestamps = Array.from(
@@ -82,6 +86,16 @@ export default async function handler(req) {
         prediction: 0,
         benchmark: 0,
       };
+    });
+
+    // Debug: Show totals from the original energyData
+    const acTotal = energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0);
+    const acTotalKWh = (acTotal / 60 / 1000).toFixed(3);
+    console.log('Original energyData totals:', {
+      dataPoints: energyData.length,
+      acTotal,
+      acTotalKWh,
+      acSampleValues: energyData.slice(0, 3).map(item => ({ name: item.name, acPower: item.acPower }))
     });
 
     // Filter data for recent time periods (last 24 hours for better 1h/24h views)
@@ -211,7 +225,7 @@ export default async function handler(req) {
           change: 0,
         },
       },
-      energyData: energyData, // Use full historical data for totals
+      energyData: energyData, // Use original unfiltered data for totals
       recentEnergyData: safeEnergyData, // Use filtered data for charts
       usageData,
       revenueData,
@@ -220,8 +234,11 @@ export default async function handler(req) {
 
     console.log('Dashboard data prepared:', {
       energyDataLength: safeEnergyData.length,
+      fullEnergyDataLength: energyData.length,
       usageDataLength: usageData.length,
-      stats: dashboardData.stats
+      stats: dashboardData.stats,
+      acTotal: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
+      acTotalKWh: (energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0) / 60 / 1000).toFixed(3)
     });
 
     cache = {

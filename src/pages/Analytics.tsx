@@ -125,7 +125,15 @@ const Analytics = () => {
 
   console.log('Analytics data received:', {
     energyDataLength: energyData.length,
-    usageDataLength: usageData.length
+    usageDataLength: usageData.length,
+    acTotal: energyData.reduce((sum, row) => sum + (typeof row.acPower === 'number' ? row.acPower : 0), 0),
+    acTotalKWh: totalKWhWithMultiplier(energyData, 'acPower', 1),
+    firstFewDataPoints: energyData.slice(0, 3).map(item => ({
+      name: item.name,
+      acPower: item.acPower,
+      lightPower: item.lightPower,
+      fanPower: item.fanPower
+    }))
   });
 
   return (
