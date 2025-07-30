@@ -93,8 +93,17 @@ const Dashboard = () => {
   const getChartData = (activeRange: string) => {
     if (!energyData || energyData.length === 0) return [];
     
-    // Return last 20 data points for simplicity
-    return energyData.slice(-20);
+    // Return appropriate number of data points based on time range
+    if (activeRange === '1h') {
+      // For 1-hour view, show last 12 data points (5-minute intervals)
+      return energyData.slice(-12);
+    } else if (activeRange === '24h') {
+      // For 24-hour view, show last 24 data points (1-hour intervals)
+      return energyData.slice(-24);
+    } else {
+      // Default: return last 12 data points
+      return energyData.slice(-12);
+    }
   };
 
   // Handle device toggle

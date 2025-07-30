@@ -84,22 +84,36 @@ export default async function handler(req) {
       };
     });
 
+    // Filter data for recent time periods (last 24 hours for better 1h/24h views)
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    const recentEnergyData = energyData.filter(item => {
+      try {
+        const [datePart, timePart] = item.name.split('_');
+        const [year, month, day] = datePart.split('-');
+        const [hour, minute] = timePart.split('-');
+        
+        const itemDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+        return itemDate >= oneDayAgo;
+      } catch (error) {
+        console.error('Error parsing timestamp for filtering:', item.name, error);
+        return false;
+      }
+    });
+
+    console.log('Recent energy data (last 24h):', recentEnergyData.length);
+
+    // Use recent data if available, otherwise use current month data
+    const finalEnergyData = recentEnergyData.length > 0 ? recentEnergyData : energyData;
+
     // Peak usage in last 24 hours
     const nowDate = new Date();
     const currentYear = nowDate.getFullYear();
     const currentMonth = nowDate.getMonth(); // 0-indexed
 
-    // Improved: Filter energyData for current month (1-based month comparison)
-    const energyDataThisMonth = energyData.filter(item => {
-      const [dateStr] = item.name.split('_');
-      const [year, month] = dateStr.split('-');
-      return Number(year) === currentYear && parseInt(month, 10) === (currentMonth + 1);
-    });
-
-    console.log('Energy data for current month:', energyDataThisMonth.length);
-
-    // If no data for the current month, use zeros
-    const safeEnergyData = energyDataThisMonth.length > 0 ? energyDataThisMonth : [{
+    // Use the filtered recent data for better 1h/24h views
+    const safeEnergyData = finalEnergyData.length > 0 ? finalEnergyData : [{
       name: new Date().toISOString().split('T')[0] + '_00-00',
       acPower: 0,
       fanPower: 0,

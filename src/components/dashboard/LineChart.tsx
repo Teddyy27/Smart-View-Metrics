@@ -38,14 +38,38 @@ const LineChart: React.FC<LineChartProps> = ({
   loading = false,
   getChartData
 }) => {
-  const [activeRange, setActiveRange] = useState(timeRanges[0]);
+  const [activeRange, setActiveRange] = useState('1h');
   const [chartData, setChartData] = useState<DataPoint[]>([]);
   
   // Helper to format x-axis labels
   const formatXAxis = (name: string) => {
     if (!name) return '';
+    
+    // Handle the specific format from API: "YYYY-MM-DD_HH-MM"
+    if (name.includes('_') && name.includes('-')) {
+      try {
+        const [datePart, timePart] = name.split('_');
+        const [year, month, day] = datePart.split('-');
+        const [hour, minute] = timePart.split('-');
+        
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute));
+        
+        if (activeRange === '1h') {
+          // For 1-hour view, show time in HH:MM format
+          return format(date, 'HH:mm');
+        } else if (activeRange === '24h') {
+          // For 24-hour view, show time in HH:MM format
+          return format(date, 'HH:mm');
+        }
+        return format(date, 'HH:mm');
+      } catch (error) {
+        console.error('Error parsing timestamp:', name, error);
+        return name;
+      }
+    }
+    
+    // Fallback for other timestamp formats
     let date: Date;
-    // Try to parse as ISO or timestamp, fallback to showing the raw value
     if (!isNaN(Number(name)) && Number(name) > 1000000000) {
       // Likely a timestamp
       date = new Date(Number(name));
@@ -55,10 +79,9 @@ const LineChart: React.FC<LineChartProps> = ({
       // Not a valid date, just return the label as is
       return name;
     }
+    
     if (activeRange === '1h' || activeRange === '24h') {
       return format(date, 'HH:mm');
-    } else if (activeRange === '7d') {
-      return format(date, 'EEE');
     }
     return name;
   };
@@ -68,16 +91,16 @@ const LineChart: React.FC<LineChartProps> = ({
     if (getChartData) {
       setChartData(getChartData(activeRange));
     } else {
-      // Default: slice data
+      // Default: slice data based on time range
       if (activeRange === '1h') {
-        setChartData(data.slice(-6));
+        // For 1-hour view, show last 12 data points (5-minute intervals)
+        setChartData(data.slice(-12));
       } else if (activeRange === '24h') {
-        setChartData(data.slice(-6));
-        } else if (activeRange === '7d') {
-          setChartData(data.slice(-7));
-        } else {
-          setChartData(data);
-        }
+        // For 24-hour view, show last 24 data points (1-hour intervals)
+        setChartData(data.slice(-24));
+      } else {
+        setChartData(data);
+      }
     }
   }, [activeRange, data, getChartData]);
 
