@@ -15,15 +15,14 @@ const Analytics = () => {
     trackPageAccess('Analytics');
   }, [trackPageAccess]);
 
-  // Helper to format power in kW (data is already in kW) - 3 decimal points
-  const toKW = (val: number) => (typeof val === 'number' ? val.toFixed(3) : '0.000');
+  // Helper to format power in kW (convert watts to kilowatts) - 3 decimal points
+  const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
   // Helper to format total usage in kWh (convert watt-minutes to kilowatt-hours) - 3 decimal points
-  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60).toFixed(3) : '0.000';
+  const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000).toFixed(3) : '0.000';
   
   // Helper to format total usage with multipliers and kWh unit
   const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
-    // Data is already in kW, so we only need to divide by 60 to get kWh (not by 1000)
-    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60) : 0;
+    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
     return `${(baseValue * multiplier).toFixed(3)} kWh`;
   };
 
@@ -39,7 +38,7 @@ const Analytics = () => {
     {
       name: 'AC',
       latest: data?.energyData && data.energyData.length > 0 ? toKW(Number(data.energyData[data.energyData.length - 1].acPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 1) : '0.000 kWh',
+      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.5) : '0.000 kWh',
     },
     {
       name: 'Lights',
@@ -157,7 +156,7 @@ const Analytics = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             title="Total AC Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'acPower', 1)}
+            value={totalKWhWithMultiplier(data?.energyData || [], 'acPower', 0.5)}
             change={0}
             icon={<Bolt className="h-6 w-6" />}
           />
