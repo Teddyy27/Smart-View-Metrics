@@ -223,7 +223,9 @@ export function useRealtimeDashboardData() {
       if (!response.ok) throw new Error('Failed to fetch dashboard data');
       return response.json();
     },
-    refetchOnWindowFocus: false,
-    staleTime: 60000, // 1 minute cache
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000, // Refresh every 5 seconds
+    staleTime: 1000, // Consider data stale after 1 second
+    gcTime: 30000, // Keep in cache for 30 seconds
   });
 } 

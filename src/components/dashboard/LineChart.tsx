@@ -91,16 +91,8 @@ const LineChart: React.FC<LineChartProps> = ({
     if (getChartData) {
       setChartData(getChartData(activeRange));
     } else {
-      // Default: slice data based on time range
-      if (activeRange === '1h') {
-        // For 1-hour view, show last 12 data points (5-minute intervals)
-        setChartData(data.slice(-12));
-      } else if (activeRange === '24h') {
-        // For 24-hour view, show last 24 data points (1-hour intervals)
-        setChartData(data.slice(-24));
-      } else {
-        setChartData(data);
-      }
+      // Fallback: use all data if no getChartData function provided
+      setChartData(data);
     }
   }, [activeRange, data, getChartData]);
 

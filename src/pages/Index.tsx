@@ -93,13 +93,60 @@ const Dashboard = () => {
   const getChartData = (activeRange: string) => {
     if (!energyData || energyData.length === 0) return [];
     
-    // Return appropriate number of data points based on time range
     if (activeRange === '1h') {
-      // For 1-hour view, show last 12 data points (5-minute intervals)
-      return energyData.slice(-12);
+      // For 1-hour view, create 10-minute intervals
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      
+      // Create 7 data points with 10-minute intervals
+      const intervals = [];
+      for (let i = 0; i < 7; i++) {
+        const time = new Date(oneHourAgo.getTime() + i * 10 * 60 * 1000);
+        const timeString = time.toISOString().split('T')[0] + '_' + 
+                          time.getHours().toString().padStart(2, '0') + '-' + 
+                          time.getMinutes().toString().padStart(2, '0');
+        
+        // Find the closest data point or use zero values
+        const closestData = energyData.find(data => data.name === timeString) || {
+          name: timeString,
+          acPower: 0,
+          fanPower: 0,
+          lightPower: 0,
+          refrigeratorPower: 0,
+          totalPower: 0
+        };
+        
+        intervals.push(closestData);
+      }
+      return intervals;
+      
     } else if (activeRange === '24h') {
-      // For 24-hour view, show last 24 data points (1-hour intervals)
-      return energyData.slice(-24);
+      // For 24-hour view, create 4-hour intervals
+      const now = new Date();
+      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      // Create 7 data points with 4-hour intervals
+      const intervals = [];
+      for (let i = 0; i < 7; i++) {
+        const time = new Date(oneDayAgo.getTime() + i * 4 * 60 * 60 * 1000);
+        const timeString = time.toISOString().split('T')[0] + '_' + 
+                          time.getHours().toString().padStart(2, '0') + '-' + 
+                          time.getMinutes().toString().padStart(2, '0');
+        
+        // Find the closest data point or use zero values
+        const closestData = energyData.find(data => data.name === timeString) || {
+          name: timeString,
+          acPower: 0,
+          fanPower: 0,
+          lightPower: 0,
+          refrigeratorPower: 0,
+          totalPower: 0
+        };
+        
+        intervals.push(closestData);
+      }
+      return intervals;
+      
     } else {
       // Default: return last 12 data points
       return energyData.slice(-12);

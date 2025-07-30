@@ -57,6 +57,27 @@ const Analytics = () => {
     },
   ];
 
+  // Debug: Log the latest data points to see what we're getting
+  if (data?.energyData && data.energyData.length > 0) {
+    const latestData = data.energyData[data.energyData.length - 1];
+    console.log('Analytics - Latest data point:', {
+      timestamp: latestData.name,
+      acPower: latestData.acPower,
+      fanPower: latestData.fanPower,
+      lightPower: latestData.lightPower,
+      refrigeratorPower: latestData.refrigeratorPower
+    });
+    
+    // Also log the last 3 data points to see the trend
+    const last3Points = data.energyData.slice(-3);
+    console.log('Analytics - Last 3 data points:', last3Points.map(point => ({
+      timestamp: point.name,
+      acPower: point.acPower,
+      fanPower: point.fanPower,
+      lightPower: point.lightPower
+    })));
+  }
+
   // Format date and time for the table (from 'name' field)
   const parseDateTime = (name: string) => {
     // Full format: 2025-06-17_19-20
