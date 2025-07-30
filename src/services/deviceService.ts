@@ -26,15 +26,20 @@ class DeviceService {
   private listeners: ((devices: Device[]) => void)[] = [];
   private firebaseListener: (() => void) | null = null;
   private isBulkOperation: boolean = false;
+  private isAutomaticCreationDisabled: boolean = true; // Disable automatic device creation
 
   constructor() {
     this.initializeFirebaseListener();
   }
 
   private initializeFirebaseListener() {
+    console.log('🔍 Initializing Firebase device listener...');
+    
     // Listen to the devices node in Firebase
     const devicesRef = ref(db, 'devices');
     this.firebaseListener = onValue(devicesRef, (snapshot) => {
+      console.log('📡 Firebase device listener triggered');
+      
       // Skip updates during bulk operations to prevent conflicts
       if (this.isBulkOperation) {
         console.log('Skipping Firebase listener update during bulk operation');
@@ -42,15 +47,28 @@ class DeviceService {
       }
 
       const data = snapshot.val();
+      const previousDeviceCount = this.devices.length;
+      
       if (data) {
         // Convert Firebase object to array
-        this.devices = Object.keys(data).map(id => ({
+        const newDevices = Object.keys(data).map(id => ({
           id,
           ...data[id]
         }));
+        
+        const newDeviceCount = newDevices.length;
+        
+        if (newDeviceCount > previousDeviceCount) {
+          console.warn(`⚠️ DEVICE COUNT INCREASED: ${previousDeviceCount} → ${newDeviceCount}`);
+          console.warn('New devices detected:', newDevices.filter(d => !this.devices.find(od => od.id === d.id)));
+        }
+        
+        this.devices = newDevices;
       } else {
-      this.devices = [];
-    }
+        this.devices = [];
+      }
+      
+      console.log(`📊 Current device count: ${this.devices.length}`);
       this.notifyListeners();
     });
   }
@@ -74,27 +92,88 @@ class DeviceService {
     };
   }
 
+  // Clean up duplicate devices
+  async cleanupDuplicateDevices(): Promise<{ removed: number; duplicates: string[] }> {
+    const duplicates: string[] = [];
+    const seenNames = new Set<string>();
+    const devicesToRemove: string[] = [];
+    
+    // Find duplicates by name
+    this.devices.forEach(device => {
+      const normalizedName = device.name.toLowerCase().trim();
+      if (seenNames.has(normalizedName)) {
+        duplicates.push(device.name);
+        devicesToRemove.push(device.id);
+      } else {
+        seenNames.add(normalizedName);
+      }
+    });
+    
+    // Remove duplicate devices
+    if (devicesToRemove.length > 0) {
+      console.log(`Removing ${devicesToRemove.length} duplicate devices:`, duplicates);
+      await this.removeMultipleDevices(devicesToRemove);
+    }
+    
+    return {
+      removed: devicesToRemove.length,
+      duplicates
+    };
+  }
+
+  // Control automatic device creation
+  setAutomaticCreationEnabled(enabled: boolean): void {
+    this.isAutomaticCreationDisabled = !enabled;
+    console.log(`🔧 Automatic device creation ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  isAutomaticCreationEnabled(): boolean {
+    return !this.isAutomaticCreationDisabled;
+  }
+
   // Get all devices
   getDevices(): Device[] {
     return [...this.devices];
   }
 
-  // Add a new device
-  async addDevice(name: string, type: string, togglePath?: string): Promise<Device> {
-    const id = Date.now().toString();
-    const now = Date.now();
-    const device: Device = {
-      id,
-      name: name.trim(),
-      type,
-      state: false,
-      lastUpdated: now,
-      status: 'online',
+  // Monitor device creation attempts
+  private logDeviceCreationAttempt(caller: string, data: any): void {
+    const logData = {
+      timestamp: new Date().toISOString(),
+      caller,
+      data,
+      stack: new Error().stack?.split('\n').slice(2, 6).join('\n') // Get call stack
     };
     
-    // Save to Firebase - this will trigger the listener and update local state
-    await set(ref(db, `devices/${device.id}`), device);
-    return device;
+    console.group(`🔍 Device Creation Attempt from ${caller}`);
+    console.log('Timestamp:', logData.timestamp);
+    console.log('Caller:', caller);
+    console.log('Data:', data);
+    console.log('Call Stack:', logData.stack);
+    console.groupEnd();
+    
+    // Save to Firebase for monitoring
+    const logRef = ref(db, `logs/deviceCreationAttempts/${Date.now()}`);
+    set(logRef, logData).catch(error => {
+      console.error('Failed to log device creation attempt:', error);
+    });
+  }
+
+  // Add a new device
+  async addDevice(name: string, type: string, togglePath?: string): Promise<Device> {
+    // Log the creation attempt with detailed information
+    const stackTrace = new Error().stack;
+    console.group(`🚫 DEVICE CREATION ATTEMPT BLOCKED`);
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Name:', name);
+    console.log('Type:', type);
+    console.log('Toggle Path:', togglePath);
+    console.log('Stack Trace:', stackTrace);
+    console.groupEnd();
+    
+    // Completely disable device creation
+    console.warn(`🚫 Device creation blocked: "${name}" (${type}) - All device creation disabled`);
+    throw new Error('Device creation is completely disabled. No new devices can be created.');
   }
 
   // Toggle device state

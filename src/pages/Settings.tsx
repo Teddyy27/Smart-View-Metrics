@@ -33,7 +33,8 @@ import {
   Plus,
   Save,
   Check,
-  ChevronRight
+  ChevronRight,
+  Shield
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,8 +43,9 @@ import { cn } from '@/lib/utils';
 import { updateProfile } from 'firebase/auth';
 import { deviceTypes } from '@/services/deviceService';
 import { useDevices } from '@/hooks/useDevices';
+import { deviceService } from '@/services/deviceService';
 import { db } from '@/services/firebase';
-import { ref, set } from 'firebase/database';
+import { ref, set, get } from 'firebase/database';
 import { runDeviceSyncTest, DeviceSyncTester } from '@/utils/deviceSyncTest';
 import { FirebaseDebugger } from '@/utils/firebaseDebug';
 import { EmergencyDeviceRemoval } from '@/utils/emergencyDeviceRemoval';
@@ -134,19 +136,36 @@ const SettingsPage = () => {
     setSyncStatus('syncing');
     
     try {
-      // Simulate sync operation with actual data
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Create sync data with actual device and user information
       const syncData = {
         devices: devices,
-        user: user,
+        user: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName
+        },
         timestamp: new Date().toISOString(),
-        syncType: 'automatic'
+        syncType: 'automatic',
+        syncVersion: '1.0'
       };
       
-      // Here you would typically send data to your backend/cloud
-      console.log('Syncing data:', syncData);
+      // Save sync data to Firebase
+      const syncRef = ref(db, `sync/${user.uid}/history/${Date.now()}`);
+      await set(syncRef, syncData);
       
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Update user's last sync timestamp
+      const userSyncRef = ref(db, `users/${user.uid}/lastSync`);
+      await set(userSyncRef, {
+        timestamp: new Date().toISOString(),
+        deviceCount: devices.length,
+        syncType: 'automatic'
+      });
+      
+      console.log('Data synced successfully:', syncData);
       
       // Update last sync time
       const newLastSync = new Date().toISOString();
@@ -155,7 +174,7 @@ const SettingsPage = () => {
       
       toast({
         title: "Sync Completed",
-        description: "Data synchronized successfully",
+        description: `Successfully synced ${devices.length} devices`,
       });
       
       // Calculate next sync time
@@ -169,7 +188,7 @@ const SettingsPage = () => {
       
       toast({
         title: "Sync Failed",
-        description: "Failed to synchronize data",
+        description: error instanceof Error ? error.message : "Failed to synchronize data",
         variant: "destructive"
       });
     } finally {
@@ -179,7 +198,65 @@ const SettingsPage = () => {
 
   // Manual sync function
   const handleManualSync = async () => {
-    await performSync();
+    if (isSyncing) return;
+    
+    setIsSyncing(true);
+    setSyncStatus('syncing');
+    
+    try {
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Create sync data for manual sync
+      const syncData = {
+        devices: devices,
+        user: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName
+        },
+        timestamp: new Date().toISOString(),
+        syncType: 'manual',
+        syncVersion: '1.0'
+      };
+      
+      // Save sync data to Firebase
+      const syncRef = ref(db, `sync/${user.uid}/history/${Date.now()}`);
+      await set(syncRef, syncData);
+      
+      // Update user's last sync timestamp
+      const userSyncRef = ref(db, `users/${user.uid}/lastSync`);
+      await set(userSyncRef, {
+        timestamp: new Date().toISOString(),
+        deviceCount: devices.length,
+        syncType: 'manual'
+      });
+      
+      console.log('Manual sync completed:', syncData);
+      
+      // Update last sync time
+      const newLastSync = new Date().toISOString();
+      setSyncSettings(prev => ({ ...prev, lastSync: newLastSync }));
+      setSyncStatus('completed');
+      
+      toast({
+        title: "Manual Sync Completed",
+        description: `Successfully synced ${devices.length} devices`,
+      });
+      
+    } catch (error) {
+      console.error('Manual sync failed:', error);
+      setSyncStatus('failed');
+      
+      toast({
+        title: "Manual Sync Failed",
+        description: error instanceof Error ? error.message : "Failed to synchronize data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   // Save sync settings to Firebase
@@ -206,11 +283,22 @@ const SettingsPage = () => {
     
     try {
       const userSettingsRef = ref(db, `users/${user.uid}/settings/sync`);
-      // For now, we'll use the default settings
-      // In a real implementation, you'd fetch from Firebase here
-      console.log('Sync settings loaded from Firebase');
+      const snapshot = await get(userSettingsRef);
+      
+      if (snapshot.exists()) {
+        const savedSettings = snapshot.val();
+        setSyncSettings(prev => ({
+          ...prev,
+          ...savedSettings,
+          lastSync: savedSettings.lastSync || prev.lastSync
+        }));
+        console.log('Sync settings loaded from Firebase:', savedSettings);
+      } else {
+        console.log('No saved sync settings found, using defaults');
+      }
     } catch (error) {
       console.error('Failed to load sync settings:', error);
+      // Continue with default settings if loading fails
     }
   };
 
@@ -983,8 +1071,17 @@ const SettingsPage = () => {
                       <Button variant="outline" onClick={() => setIsAddDeviceOpen(false)}>
                         Cancel
                       </Button>
-                      <Button onClick={handleAddDevice}>
-                        Add Device
+                      <Button 
+                        onClick={() => {
+                          toast({
+                            title: "Device Creation Disabled",
+                            description: "Device creation is completely disabled to prevent automatic device creation.",
+                            variant: "destructive"
+                          });
+                        }}
+                        disabled
+                      >
+                        Device Creation Disabled
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -1231,6 +1328,40 @@ const SettingsPage = () => {
                   >
                     💥 Force Remove ALL Devices (Bypass Service)
                   </Button>
+                  
+                  <Button 
+                    onClick={async () => {
+                      try {
+                        const result = await deviceService.cleanupDuplicateDevices();
+                        toast({
+                          title: "Cleanup Complete",
+                          description: `Removed ${result.removed} duplicate devices`,
+                        });
+                      } catch (error) {
+                        toast({
+                          title: "Cleanup Failed",
+                          description: "Failed to clean up duplicate devices",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    🧹 Clean Up Duplicate Devices
+                  </Button>
+                  
+                  <div className="flex items-center justify-between p-3 border rounded-lg bg-red-50">
+                    <div className="space-y-0.5">
+                      <Label className="text-red-700">Device Creation Status</Label>
+                      <p className="text-sm text-red-600">
+                        All device creation is completely disabled
+                      </p>
+                    </div>
+                    <div className="text-red-600">
+                      <Shield className="w-5 h-5" />
+                    </div>
+                  </div>
                   
                   {testResult && (
                     <div className={`p-3 rounded-lg text-sm ${

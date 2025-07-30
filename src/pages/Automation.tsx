@@ -76,17 +76,6 @@ const Automation = () => {
     setAutomationDevices(convertedDevices);
   }, [devices]);
 
-  // On mount, ensure all devices have a toggle value in Firebase
-  useEffect(() => {
-    automationDevices.forEach(async (device) => {
-      const toggleRef = dbRef(db, `devices/${device.id}/state`);
-      const snap = await get(toggleRef);
-      if (!snap.exists()) {
-        await dbSet(toggleRef, false);
-      }
-    });
-  }, [automationDevices]);
-
   // Real-time listeners for each device's state
   useEffect(() => {
     // Listen to device state changes in Firebase for all current devices
@@ -258,8 +247,17 @@ const Automation = () => {
                 <Button variant="outline" onClick={() => setIsAddDeviceOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddDevice}>
-                  Add Device
+                <Button 
+                  onClick={() => {
+                    toast({
+                      title: "Device Creation Disabled",
+                      description: "Device creation is completely disabled to prevent automatic device creation.",
+                      variant: "destructive"
+                    });
+                  }}
+                  disabled
+                >
+                  Device Creation Disabled
                 </Button>
               </DialogFooter>
             </DialogContent>
