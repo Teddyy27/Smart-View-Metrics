@@ -36,6 +36,9 @@ const Dashboard = () => {
   const fullEnergyData = data?.energyData || [];
   const usageData = data?.usageData || [];
 
+  // Create delayed data (excluding most recent 5 minutes) for charts
+  const delayedEnergyData = energyData.length > 5 ? energyData.slice(0, -5) : energyData;
+
   // Safe data extraction with defaults
   const stats = data?.stats || {};
   const energyUsage = stats.energyUsage || { value: '0.00 kW', change: 0 };
@@ -53,12 +56,12 @@ const Dashboard = () => {
     return baseValue * multiplier;
   };
   
-  // Calculate peak usage (maximum power at any moment) with proper conversion
+  // Calculate peak usage (maximum power at any moment) with proper conversion - 5-minute delayed
   const getPeakPower = () => {
-    if (!energyData || energyData.length === 0) return 0;
+    if (!delayedEnergyData || delayedEnergyData.length === 0) return 0;
     
     let maxTotalPower = 0;
-    energyData.forEach(row => {
+    delayedEnergyData.forEach(row => {
       const acPower = (Number(row.acPower || 0) / 1000); // Convert to kW
       const lightingPower = (Number(row.lightPower || 0) / 1000); // Convert to kW
       const fanPower = (Number(row.fanPower || 0) / 1000); // Convert to kW
@@ -94,6 +97,7 @@ const Dashboard = () => {
   console.log('Dashboard data received:', {
     stats,
     energyDataLength: energyData.length,
+    delayedEnergyDataLength: delayedEnergyData.length,
     usageDataLength: usageData.length,
     devicePowers: { acPower, fanPower, lightPower, refrigeratorPower },
     managedDevices: devices.length
@@ -111,9 +115,12 @@ const Dashboard = () => {
     });
   }
 
-  // Simple chart data function
+  // Simple chart data function - 5-minute delayed
   const getChartData = (activeRange: string) => {
-    if (!energyData || energyData.length === 0) return [];
+    if (!energyData || energyData.length <= 5) return [];
+    
+    // Use data excluding the most recent 5 minutes
+    const delayedEnergyData = energyData.slice(0, -5);
     
     if (activeRange === '1h') {
       // For 1-hour view, create 10-minute intervals
@@ -129,7 +136,7 @@ const Dashboard = () => {
                           time.getMinutes().toString().padStart(2, '0');
         
         // Find the closest data point or use zero values
-        const closestData = energyData.find(data => data.name === timeString) || {
+        const closestData = delayedEnergyData.find(data => data.name === timeString) || {
           name: timeString,
           acPower: 0,
           fanPower: 0,
@@ -156,7 +163,7 @@ const Dashboard = () => {
                           time.getMinutes().toString().padStart(2, '0');
         
         // Find the closest data point or use zero values
-        const closestData = energyData.find(data => data.name === timeString) || {
+        const closestData = delayedEnergyData.find(data => data.name === timeString) || {
           name: timeString,
           acPower: 0,
           fanPower: 0,
@@ -170,8 +177,8 @@ const Dashboard = () => {
       return intervals;
       
     } else {
-      // Default: return last 12 data points
-      return energyData.slice(-12);
+      // Default: return last 12 data points (excluding most recent 5 minutes)
+      return delayedEnergyData.slice(-12);
     }
   };
 
@@ -256,8 +263,8 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
             <LineChart 
-              title="Device Power Consumption"
-              data={energyData}
+              title="Device Power Consumption (5-min delay)"
+              data={delayedEnergyData}
               lines={[
                 { key: 'acPower', color: '#3b82f6', name: 'AC' },
                 { key: 'fanPower', color: '#10b981', name: 'Fan' },
@@ -271,23 +278,23 @@ const Dashboard = () => {
           </div>
           <div>
             <BarChart
-              title="Device Usage (kWh)"
+              title="Device Usage (kWh) - 5-min delay"
               data={[
                 {
                   name: 'AC',
-                  usage: getTotalKWhNumeric(energyData, 'acPower', 1)
+                  usage: getTotalKWhNumeric(delayedEnergyData, 'acPower', 1)
                 },
                 {
                   name: 'Lights',
-                  usage: getTotalKWhNumeric(energyData, 'lightPower', 1)
+                  usage: getTotalKWhNumeric(delayedEnergyData, 'lightPower', 1)
                 },
                 {
                   name: 'Fan',
-                  usage: getTotalKWhNumeric(energyData, 'fanPower', 1)
+                  usage: getTotalKWhNumeric(delayedEnergyData, 'fanPower', 1)
                 },
                 {
                   name: 'Refrigerator',
-                  usage: getTotalKWhNumeric(energyData, 'refrigeratorPower', 1)
+                  usage: getTotalKWhNumeric(delayedEnergyData, 'refrigeratorPower', 1)
                 }
               ]}
               bars={[
