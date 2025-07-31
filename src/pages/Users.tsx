@@ -35,7 +35,6 @@ const UsersPage = () => {
   const { data: userData, loading: userDataLoading, trackPageAccess } = useUserData();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [dashboardPermissions, setDashboardPermissions] = useState<any[]>([]);
 
@@ -192,10 +191,7 @@ const UsersPage = () => {
     return descriptions.length > 0 ? descriptions.join(', ') : 'Limited Access';
   };
 
-  const filteredUsers = users.filter(user =>
-    (user.displayName && user.displayName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+
 
   // Function to refresh activity data with unique user filtering
   const refreshActivityData = async () => {
@@ -265,23 +261,14 @@ const UsersPage = () => {
               Users who have access to your SmartView dashboard
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshActivityData}
-            >
-              <Activity className="w-4 h-4 mr-2" />
-              Refresh Data
-            </Button>
-            <Input
-              type="text"
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-64"
-            />
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshActivityData}
+          >
+            <Activity className="w-4 h-4 mr-2" />
+            Refresh Data
+          </Button>
         </div>
 
         <Card>

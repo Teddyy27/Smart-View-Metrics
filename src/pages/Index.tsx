@@ -78,11 +78,12 @@ const Dashboard = () => {
     change: 0 
   };
 
-  // Get latest device power values safely (convert watts to kilowatts)
+  // Get latest device power values safely (convert watts to kilowatts) - 5-minute delay
   const getLatestDevicePower = (deviceKey: string) => {
-    if (!energyData || energyData.length === 0) return 0;
-    const latestData = energyData[energyData.length - 1];
-    return Number(latestData[deviceKey] || 0) / 1000; // Convert watts to kilowatts
+    if (!energyData || energyData.length <= 5) return 0;
+    // Use data from 5 minutes ago instead of most recent
+    const delayedData = energyData[energyData.length - 6];
+    return Number(delayedData[deviceKey] || 0) / 1000; // Convert watts to kilowatts
   };
 
   const acPower = getLatestDevicePower('acPower');
@@ -97,6 +98,18 @@ const Dashboard = () => {
     devicePowers: { acPower, fanPower, lightPower, refrigeratorPower },
     managedDevices: devices.length
   });
+
+  // Debug: Log the 5-minute delayed data point
+  if (energyData && energyData.length > 5) {
+    const delayedData = energyData[energyData.length - 6]; // 5 minutes ago
+    console.log('Dashboard - 5-minute delayed data point:', {
+      timestamp: delayedData.name,
+      acPower: delayedData.acPower,
+      fanPower: delayedData.fanPower,
+      lightPower: delayedData.lightPower,
+      refrigeratorPower: delayedData.refrigeratorPower
+    });
+  }
 
   // Simple chart data function
   const getChartData = (activeRange: string) => {
@@ -346,7 +359,7 @@ const Dashboard = () => {
         {/* Device Status Overview */}
         <div className="mb-6">
           <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="text-lg font-semibold mb-4 text-card-foreground">Device Status Overview</h3>
+            <h3 className="text-lg font-semibold mb-4 text-card-foreground">Device Status Overview (5-min delay)</h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* AC Status */}
               <div className="bg-card rounded-lg p-4 border border-border">
