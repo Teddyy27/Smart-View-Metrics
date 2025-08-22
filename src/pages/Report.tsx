@@ -143,11 +143,11 @@ const Report = () => {
         });
       });
 
-      // Calculate predicted daily total based on current month prediction
+      // Calculate predicted daily total based on next month prediction
       const calculatePredictedDaily = () => {
-        const currentMonthPrediction = predictedData.current_month_bill.predicted_energy_kwh;
+        const nextMonthPrediction = predictedData.next_month_forecast.predicted_energy_kwh;
         const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-        return currentMonthPrediction / daysInMonth;
+        return nextMonthPrediction / daysInMonth;
       };
 
       const predictedDailyTotal = calculatePredictedDaily();
@@ -247,6 +247,7 @@ const Report = () => {
   }, [user, authLoading]);
 
   // Fetch predicted data from Firebase
+  // Note: next_month_forecast now directly fetches from the predicted_energy_kwh endpoint
   useEffect(() => {
     if (authLoading) {
       console.log('Waiting for authentication...');
@@ -263,7 +264,7 @@ const Report = () => {
     console.log('User authenticated, setting up Firebase listeners...');
     
     const currentMonthBillRef = ref(db, 'current_month_bill');
-    const nextMonthForecastRef = ref(db, 'next_month_forecast');
+    const nextMonthForecastRef = ref(db, 'next_month_forecast/predicted_energy_kwh');
 
     console.log('Listening to current_month_bill...');
     const unsubscribeCurrent = onValue(currentMonthBillRef, (snapshot) => {
@@ -285,23 +286,31 @@ const Report = () => {
       setLoading(false);
     });
 
-    console.log('Listening to next_month_forecast...');
+    console.log('Listening to next_month_forecast/predicted_energy_kwh...');
     const unsubscribeNext = onValue(nextMonthForecastRef, (snapshot) => {
       const value = snapshot.val();
-      console.log('Next month forecast data:', value);
+      console.log('Next month forecast predicted energy data:', value);
+      
+      // Since we're now directly accessing the predicted energy value,
+      // we need to create a forecast object with the current data
+      const currentDate = new Date();
+      const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      
       setPredictedData(prev => ({
         ...prev,
-        next_month_forecast: value || {
-          month: '',
-          predicted_bill: 0,
-          predicted_energy_kwh: 0,
-          year: 0
+        next_month_forecast: {
+          month: monthNames[nextMonth.getMonth()],
+          predicted_bill: 0, // We'll need to calculate this or get from another endpoint
+          predicted_energy_kwh: value || 0,
+          year: nextMonth.getFullYear()
         }
       }));
       setLoading(false);
       setError(null);
     }, (error) => {
-      console.error('Error fetching next_month_forecast:', error);
+      console.error('Error fetching next_month_forecast/predicted_energy_kwh:', error);
       setError(`Error fetching next month forecast: ${error.message}`);
       setLoading(false);
     });
@@ -436,41 +445,41 @@ const Report = () => {
           {/* Header Section */}
           <div className="mb-6">
             <h1 className="text-3xl font-bold mb-2">SmartView Energy Report</h1>
-            <p className="text-muted-foreground">Comprehensive energy consumption analysis and predictions</p>
+            <p className="text-muted-foreground">Comprehensive energy consumption analysis and next month energy predictions</p>
           </div>
 
-          {/* Key Metrics Cards */}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Current Month Bill</CardTitle>
+                <CardTitle className="text-sm font-medium">Next Month Bill (Estimated)</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">₹{(predictedData.next_month_forecast.predicted_energy_kwh * 8.5).toFixed(0)}</div>
+                <p className="text-xs text-muted-foreground">{predictedData.next_month_forecast.month} {predictedData.next_month_forecast.year} (₹8.5/kWh rate)</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Next Month Energy Prediction</CardTitle>
+                <Zap className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{predictedData.next_month_forecast.predicted_energy_kwh.toFixed(2)} kWh</div>
+                <p className="text-xs text-muted-foreground">Next Month Forecast</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Current Month</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">₹{predictedData.current_month_bill.predicted_bill.toLocaleString()}</div>
                 <p className="text-xs text-muted-foreground">{predictedData.current_month_bill.month}</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Predicted Energy</CardTitle>
-                <Zap className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{predictedData.current_month_bill.predicted_energy_kwh.toFixed(2)} kWh</div>
-                <p className="text-xs text-muted-foreground">Current Month</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Next Month Forecast</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">₹{predictedData.next_month_forecast.predicted_bill.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">{predictedData.next_month_forecast.month} {predictedData.next_month_forecast.year}</p>
               </CardContent>
             </Card>
           </div>
