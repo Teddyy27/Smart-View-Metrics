@@ -26,7 +26,7 @@ class DeviceService {
   private listeners: ((devices: Device[]) => void)[] = [];
   private firebaseListener: (() => void) | null = null;
   private isBulkOperation: boolean = false;
-  private isAutomaticCreationDisabled: boolean = true; // Disable automatic device creation
+  private isAutomaticCreationDisabled: boolean = false; // Enable automatic device creation
 
   constructor() {
     this.initializeFirebaseListener();
@@ -161,19 +161,30 @@ class DeviceService {
 
   // Add a new device
   async addDevice(name: string, type: string, togglePath?: string): Promise<Device> {
-    // Log the creation attempt with detailed information
-    const stackTrace = new Error().stack;
-    console.group(`🚫 DEVICE CREATION ATTEMPT BLOCKED`);
-    console.log('Timestamp:', new Date().toISOString());
-    console.log('Name:', name);
-    console.log('Type:', type);
-    console.log('Toggle Path:', togglePath);
-    console.log('Stack Trace:', stackTrace);
-    console.groupEnd();
+    console.log(`Adding new device: ${name} (${type})`);
     
-    // Completely disable device creation
-    console.warn(`🚫 Device creation blocked: "${name}" (${type}) - All device creation disabled`);
-    throw new Error('Device creation is completely disabled. No new devices can be created.');
+    const deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = Date.now();
+    
+    const newDevice: Device = {
+      id: deviceId,
+      name,
+      type,
+      state: false,
+      lastUpdated: now,
+      status: 'online'
+    };
+
+    try {
+      // Add device to Firebase
+      await set(ref(db, `devices/${deviceId}`), newDevice);
+      
+      console.log(`✅ Device added successfully: ${name} (${deviceId})`);
+      return newDevice;
+    } catch (error) {
+      console.error('Error adding device:', error);
+      throw new Error(`Failed to add device: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   // Toggle device state

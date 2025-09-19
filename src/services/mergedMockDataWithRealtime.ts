@@ -170,24 +170,112 @@ export const generateMockData = (): DashboardData => {
 export default generateMockData;
 
 // --- Real-time Firebase hook for dashboard data ---
-// import { db } from './firebase';
-// import { ref, onValue, off } from 'firebase/database';
+import { db } from './firebase';
+import { ref, onValue, off } from 'firebase/database';
 import { useEffect, useState } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
+
+// Process Firebase data into dashboard format
+const processFirebaseData = (firebaseData: any): DashboardData => {
+  // Extract energy data from Firebase
+  const acLogs = firebaseData?.ac_power_logs || {};
+  const fanLogs = firebaseData?.power_logs || {};
+  const lightLogs = firebaseData?.lights?.power_logs || {};
+  const refrigeratorLogs = firebaseData?.refrigerator?.power_logs || {};
+
+  const allTimestamps = Array.from(
+    new Set([
+      ...Object.keys(acLogs),
+      ...Object.keys(fanLogs),
+      ...Object.keys(lightLogs),
+      ...Object.keys(refrigeratorLogs),
+    ])
+  ).sort();
+
+  const energyData = allTimestamps.map((ts) => {
+    const acPower = typeof acLogs[ts] === 'number' ? acLogs[ts] : 0;
+    const fanPower = fanLogs[ts] ? Number(fanLogs[ts]) : 0;
+    const lightPower = typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0;
+    const refrigeratorPower = typeof refrigeratorLogs[ts] === 'number' ? refrigeratorLogs[ts] : 0;
+    const totalPower = acPower + fanPower + lightPower + refrigeratorPower;
+    
+    return {
+      name: ts,
+      consumption: totalPower / 1000, // Convert to kW
+      prediction: totalPower / 1000,
+      benchmark: 2.5,
+      acPower,
+      fanPower,
+      lightPower,
+      refrigeratorPower,
+      totalPower
+    };
+  });
+
+  // Calculate stats
+  const currentPower = energyData.length > 0 ? energyData[energyData.length - 1].totalPower : 0;
+  const avgPower = energyData.length > 0 ? energyData.reduce((sum, item) => sum + item.totalPower, 0) / energyData.length : 0;
+
+  return {
+    stats: {
+      energyUsage: {
+        value: `${(currentPower / 1000).toFixed(2)} kW`,
+        change: 0
+      },
+      savings: {
+        value: '$0',
+        change: 0
+      },
+      efficiency: {
+        value: `${(avgPower / 1000).toFixed(2)} kW`,
+        change: 0
+      },
+      automationStatus: {
+        value: firebaseData?.manual_fan_control === false ? 'Auto' : 'Manual',
+        change: 0
+      }
+    },
+    energyData,
+    usageData: [
+      { name: 'AC', value: 40, color: '#3b82f6' },
+      { name: 'Lights', value: 20, color: '#8b5cf6' },
+      { name: 'Equipment', value: 25, color: '#10b981' },
+      { name: 'Other', value: 15, color: '#ef4444' }
+    ],
+    revenueData: [
+      { name: 'May', revenue: 0, expenses: 0, profit: 0 }
+    ],
+    alertsData: []
+  };
+};
 
 export function useDashboardData(): { data: DashboardData | null, loading: boolean } {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // const rootRef = ref(db, '/');
-    // const unsubscribe = onValue(rootRef, (snapshot) => {
-    //   // Real-time listener logic (DISABLED to reduce Firebase usage)
-    // });
-    // return () => off(rootRef, 'value', unsubscribe);
+    // Try Firebase real-time listener first
+    const rootRef = ref(db, '/');
+    const unsubscribe = onValue(rootRef, (snapshot) => {
+      try {
+        const firebaseData = snapshot.val();
+        if (firebaseData) {
+          // Process Firebase data and convert to dashboard format
+          const processedData = processFirebaseData(firebaseData);
+          setData(processedData);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Error processing Firebase data:', error);
+      }
+      
+      // Fallback to API route if Firebase data is not available
+      fetchDataFromAPI();
+    });
 
-    // Fetch data from the API route
-    const fetchData = async () => {
+    // Fallback function to fetch from API
+    const fetchDataFromAPI = async () => {
       try {
         const response = await fetch('/api/dashboard-data');
         if (!response.ok) {
@@ -203,9 +291,10 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
       }
     };
 
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // Poll every 10 seconds
-    return () => clearInterval(interval);
+    // Initial API fetch as backup
+    fetchDataFromAPI();
+    
+    return () => off(rootRef, 'value', unsubscribe);
   }, []);
 
   return { data, loading };

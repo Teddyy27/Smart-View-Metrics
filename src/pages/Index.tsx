@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/use-toast';
 import useSWR from 'swr';
 import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
 import { useUserData } from '@/hooks/useUserData';
+import { FirebaseTest } from '@/components/FirebaseTest';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -406,6 +407,11 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Firebase Test Component */}
+        <div className="mb-6">
+          <FirebaseTest />
         </div>
       </div>
     </Layout>

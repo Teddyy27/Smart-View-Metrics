@@ -85,11 +85,24 @@ export class DeviceSyncTester {
     try {
       console.log('Testing device addition...');
 
-      // Skip device creation test to prevent automatic device creation
-      console.log('Device addition test skipped - automatic device creation disabled');
+      // Test device creation
+      const testDevice = await deviceService.addDevice(
+        this.testDeviceName,
+        this.testDeviceType
+      );
+
+      if (!testDevice) {
+        return {
+          success: false,
+          message: 'Device addition test failed - no device returned'
+        };
+      }
+
+      console.log('✅ Device addition test passed');
       return {
         success: true,
-        message: 'Device addition test skipped (automatic creation disabled)'
+        message: 'Device addition test passed',
+        details: { deviceId: testDevice.id, deviceName: testDevice.name }
       };
 
     } catch (error) {
@@ -107,11 +120,22 @@ export class DeviceSyncTester {
     try {
       console.log('Testing device retrieval...');
 
-      // Skip device retrieval test since no test devices are created
-      console.log('Device retrieval test skipped - no test devices created');
+      // Test device retrieval
+      const devices = deviceService.getDevices();
+      const testDevice = devices.find(d => d.id === this.testDeviceId);
+
+      if (!testDevice) {
+        return {
+          success: false,
+          message: 'Device retrieval test failed - test device not found'
+        };
+      }
+
+      console.log('✅ Device retrieval test passed');
       return {
         success: true,
-        message: 'Device retrieval test skipped (no test devices)'
+        message: 'Device retrieval test passed',
+        details: { deviceId: testDevice.id, deviceName: testDevice.name }
       };
 
     } catch (error) {
@@ -129,11 +153,25 @@ export class DeviceSyncTester {
     try {
       console.log('Testing device state changes...');
 
-      // Skip device state changes test since no test devices are created
-      console.log('Device state changes test skipped - no test devices created');
+      // Test device state toggle
+      await deviceService.toggleDevice(this.testDeviceId, true);
+      
+      // Verify state change
+      const devices = deviceService.getDevices();
+      const testDevice = devices.find(d => d.id === this.testDeviceId);
+      
+      if (!testDevice || !testDevice.state) {
+        return {
+          success: false,
+          message: 'Device state changes test failed - state not updated'
+        };
+      }
+
+      console.log('✅ Device state changes test passed');
       return {
         success: true,
-        message: 'Device state changes test skipped (no test devices)'
+        message: 'Device state changes test passed',
+        details: { deviceId: this.testDeviceId, newState: testDevice.state }
       };
 
     } catch (error) {
@@ -150,67 +188,127 @@ export class DeviceSyncTester {
   private async testRealtimeUpdates(): Promise<DeviceSyncTestResult> {
     console.log('Testing real-time updates...');
 
-    // Skip real-time updates test since no test devices are created
-    console.log('Real-time updates test skipped - no test devices created');
-    return {
-      success: true,
-      message: 'Real-time updates test skipped (no test devices)'
-    };
+    return new Promise((resolve) => {
+      // Monitor for real-time updates for 3 seconds
+      const timeout = setTimeout(() => {
+        resolve({
+          success: true,
+          message: 'Real-time updates test completed (timeout reached)'
+        });
+      }, 3000);
+
+      // Subscribe to device changes
+      const unsubscribe = deviceService.subscribe((devices) => {
+        const testDevice = devices.find(d => d.id === this.testDeviceId);
+        if (testDevice) {
+          clearTimeout(timeout);
+          unsubscribe();
+          resolve({
+            success: true,
+            message: 'Real-time updates test passed - device update received',
+            details: { deviceId: testDevice.id, deviceName: testDevice.name }
+          });
+        }
+      });
+    });
   }
 
   /**
    * Clean up test device
    */
   private async cleanupTestDevice(): Promise<void> {
-    console.log('No test devices to clean up - automatic device creation disabled');
+    try {
+      console.log('Cleaning up test device...');
+      await deviceService.removeDevice(this.testDeviceId);
+      console.log('✅ Test device cleaned up successfully');
+    } catch (error) {
+      console.error('Error cleaning up test device:', error);
+    }
   }
 
   /**
    * Get current device count from Firebase
    */
   static async getDeviceCount(): Promise<number> {
-    console.log('🚫 Device count check disabled');
-    return 0;
+    try {
+      const devices = deviceService.getDevices();
+      return devices.length;
+    } catch (error) {
+      console.error('Error getting device count:', error);
+      return 0;
+    }
   }
 
   /**
    * List all devices in Firebase
    */
   static async listAllDevices(): Promise<any[]> {
-    console.log('🚫 Device listing disabled');
-    return [];
+    try {
+      const devices = deviceService.getDevices();
+      return devices;
+    } catch (error) {
+      console.error('Error listing devices:', error);
+      return [];
+    }
   }
 
   /**
    * Test device removal specifically
    */
   static async testDeviceRemoval(deviceId: string): Promise<DeviceSyncTestResult> {
-    console.log('🚫 Device removal test disabled');
-    return {
-      success: true,
-      message: 'Device removal test disabled - no device operations allowed'
-    };
+    try {
+      console.log(`Testing device removal for: ${deviceId}`);
+      
+      const success = await deviceService.removeDevice(deviceId);
+      
+      if (success) {
+        return {
+          success: true,
+          message: 'Device removal test passed',
+          details: { deviceId }
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Device removal test failed - device not removed'
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: `Device removal test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
   }
 
   /**
    * Get detailed device information including Firebase path
    */
   static async getDeviceDetails(deviceId: string): Promise<any> {
-    console.log('🚫 Device details check disabled');
-    return {
-      exists: false,
-      deviceId,
-      firebasePath: `devices/${deviceId}`,
-      message: 'Device operations disabled'
-    };
+    try {
+      const device = deviceService.getDevice(deviceId);
+      return {
+        exists: !!device,
+        deviceId,
+        firebasePath: `devices/${deviceId}`,
+        device: device || null,
+        message: device ? 'Device found' : 'Device not found'
+      };
+    } catch (error) {
+      return {
+        exists: false,
+        deviceId,
+        firebasePath: `devices/${deviceId}`,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Error checking device details'
+      };
+    }
   }
 }
 
 // Export a convenience function for running tests
 export const runDeviceSyncTest = async (): Promise<DeviceSyncTestResult> => {
-  console.log('🚫 Device sync test disabled - no tests will run');
-  return {
-    success: true,
-    message: 'Device sync tests disabled - no device creation allowed'
-  };
+  console.log('🚀 Starting device sync test...');
+  const tester = new DeviceSyncTester();
+  return await tester.runFullTest();
 }; 
