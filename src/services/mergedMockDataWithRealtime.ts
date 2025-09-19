@@ -254,47 +254,83 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Try Firebase real-time listener first
-    const rootRef = ref(db, '/');
-    const unsubscribe = onValue(rootRef, (snapshot) => {
-      try {
-        const firebaseData = snapshot.val();
-        if (firebaseData) {
-          // Process Firebase data and convert to dashboard format
-          const processedData = processFirebaseData(firebaseData);
-          setData(processedData);
-          setLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.error('Error processing Firebase data:', error);
-      }
-      
-      // Fallback to API route if Firebase data is not available
-      fetchDataFromAPI();
-    });
+    let hasFirebaseData = false;
+    let firebaseUnsubscribe: (() => void) | null = null;
 
     // Fallback function to fetch from API
     const fetchDataFromAPI = async () => {
       try {
+        console.log('Fetching data from API route...');
         const response = await fetch('/api/dashboard-data');
         if (!response.ok) {
           throw new Error('Failed to fetch dashboard data');
         }
-        const data: DashboardData = await response.json();
-        setData(data);
+        const apiData: DashboardData = await response.json();
+        console.log('API data received:', apiData);
+        setData(apiData);
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setData(null);
+        console.error('Error fetching dashboard data from API:', error);
+        // Use mock data as final fallback
+        const mockData = generateMockData();
+        setData(mockData);
       } finally {
         setLoading(false);
       }
     };
 
-    // Initial API fetch as backup
-    fetchDataFromAPI();
+    // Try Firebase real-time listener
+    try {
+      console.log('Setting up Firebase real-time listener...');
+      const rootRef = ref(db, '/');
+      firebaseUnsubscribe = onValue(rootRef, (snapshot) => {
+        try {
+          const firebaseData = snapshot.val();
+          console.log('Firebase data received:', firebaseData);
+          
+          if (firebaseData && (firebaseData.ac_power_logs || firebaseData.power_logs || firebaseData.lights)) {
+            hasFirebaseData = true;
+            // Process Firebase data and convert to dashboard format
+            const processedData = processFirebaseData(firebaseData);
+            console.log('Processed Firebase data:', processedData);
+            setData(processedData);
+            setLoading(false);
+          } else {
+            console.log('No valid Firebase data found, using API fallback');
+            if (!hasFirebaseData) {
+              fetchDataFromAPI();
+            }
+          }
+        } catch (error) {
+          console.error('Error processing Firebase data:', error);
+          if (!hasFirebaseData) {
+            fetchDataFromAPI();
+          }
+        }
+      }, (error) => {
+        console.error('Firebase listener error:', error);
+        if (!hasFirebaseData) {
+          fetchDataFromAPI();
+        }
+      });
+    } catch (error) {
+      console.error('Error setting up Firebase listener:', error);
+      fetchDataFromAPI();
+    }
+
+    // Set a timeout to fallback to API if Firebase doesn't respond
+    const timeout = setTimeout(() => {
+      if (!hasFirebaseData) {
+        console.log('Firebase timeout, falling back to API');
+        fetchDataFromAPI();
+      }
+    }, 3000);
     
-    return () => off(rootRef, 'value', unsubscribe);
+    return () => {
+      if (firebaseUnsubscribe) {
+        firebaseUnsubscribe();
+      }
+      clearTimeout(timeout);
+    };
   }, []);
 
   return { data, loading };
@@ -308,13 +344,29 @@ export function useRealtimeDashboardData() {
   return useQuery({
     queryKey: ['dashboardData'],
     queryFn: async () => {
-      const response = await fetch('/api/dashboard-data');
-      if (!response.ok) throw new Error('Failed to fetch dashboard data');
-      return response.json();
+      console.log('React Query: Fetching dashboard data...');
+      try {
+        const response = await fetch('/api/dashboard-data');
+        if (!response.ok) {
+          console.error('API response not ok:', response.status, response.statusText);
+          throw new Error(`Failed to fetch dashboard data: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        console.log('React Query: Data received:', data);
+        return data;
+      } catch (error) {
+        console.error('React Query: Error fetching data:', error);
+        // Return mock data as fallback
+        const mockData = generateMockData();
+        console.log('React Query: Using mock data as fallback');
+        return mockData;
+      }
     },
-    refetchOnWindowFocus: false, // Temporarily disable
-    refetchInterval: 30000, // Temporarily increase to 30 seconds
-    staleTime: 10000, // Temporarily increase to 10 seconds
+    refetchOnWindowFocus: false,
+    refetchInterval: 10000, // Refetch every 10 seconds
+    staleTime: 5000, // Consider data stale after 5 seconds
     gcTime: 60000, // Keep in cache for 1 minute
+    retry: 3, // Retry failed requests 3 times
+    retryDelay: 1000, // Wait 1 second between retries
   });
 } 

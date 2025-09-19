@@ -16,7 +16,6 @@ import { useToast } from '@/components/ui/use-toast';
 import useSWR from 'swr';
 import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
 import { useUserData } from '@/hooks/useUserData';
-import { FirebaseTest } from '@/components/FirebaseTest';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -26,6 +25,20 @@ const Dashboard = () => {
   const { devices, loading: devicesLoading } = useDevices();
   const [activeRange, setActiveRange] = useState('1h');
   const { toast } = useToast();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Dashboard data state:', { data, loading, error });
+    if (data) {
+      console.log('Dashboard data received:', {
+        hasStats: !!data.stats,
+        hasEnergyData: !!data.energyData,
+        energyDataLength: data.energyData?.length || 0,
+        hasUsageData: !!data.usageData,
+        usageDataLength: data.usageData?.length || 0
+      });
+    }
+  }, [data, loading, error]);
 
   // Track page access when component mounts
   useEffect(() => {
@@ -208,8 +221,14 @@ const Dashboard = () => {
     return (
       <Layout>
         <div className="h-full flex items-center justify-center">
-          <div className="text-xl font-medium animate-pulse-gentle">
-            Loading dashboard data...
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-xl font-medium animate-pulse-gentle">
+              Loading dashboard data...
+            </div>
+            <div className="text-sm text-muted-foreground mt-2">
+              Fetching from Firebase and API...
+            </div>
           </div>
         </div>
       </Layout>
@@ -236,6 +255,21 @@ const Dashboard = () => {
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Welcome to your automation control center</p>
+          {/* Data Status Indicator */}
+          <div className="flex items-center gap-2 mt-2">
+            <div className={`w-2 h-2 rounded-full ${data ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xs text-muted-foreground">
+              {data ? `Data loaded: ${energyData.length} energy points, ${devices.length} devices` : 'No data available'}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.location.reload()}
+              className="ml-2"
+            >
+              Refresh
+            </Button>
+          </div>
         </div>
         
         {/* Stats Cards */}
@@ -407,11 +441,6 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Firebase Test Component */}
-        <div className="mb-6">
-          <FirebaseTest />
         </div>
       </div>
     </Layout>
