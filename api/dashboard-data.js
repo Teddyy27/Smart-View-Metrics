@@ -8,6 +8,7 @@ let cache = {
 
 let requestCount = 0;
 
+
 export default async function handler(req) {
   requestCount++;
   console.log(`API Request #${requestCount} at ${new Date().toISOString()}`);
@@ -43,10 +44,11 @@ export default async function handler(req) {
     console.log('Firebase data received:', Object.keys(val || {}));
 
     // --- Process data to match dashboard structure ---
-    const acLogs = val?.ac_power_logs || {};
-    const fanLogs = val?.power_logs || {};
-    const lightLogs = val?.lights?.power_logs || {};
-    const refrigeratorLogs = val?.refrigerator?.power_logs || {};
+    // Try multiple possible data paths
+    const acLogs = val?.ac_power_logs || val?.ac?.power_logs || val?.ac || {};
+    const fanLogs = val?.power_logs || val?.fan?.power_logs || val?.fan || {};
+    const lightLogs = val?.lights?.power_logs || val?.light?.power_logs || val?.lights || val?.light || {};
+    const refrigeratorLogs = val?.refrigerator?.power_logs || val?.refrigerator || {};
 
     console.log('Device logs found:', {
       ac: Object.keys(acLogs).length,
@@ -62,6 +64,40 @@ export default async function handler(req) {
       fanSampleValues: Object.keys(fanLogs).slice(0, 3).map(ts => ({ timestamp: ts, value: fanLogs[ts] })),
       lightSampleValues: Object.keys(lightLogs).slice(0, 3).map(ts => ({ timestamp: ts, value: lightLogs[ts] }))
     });
+
+    // Check if we have any meaningful data
+    const totalDataPoints = Object.keys(acLogs).length + Object.keys(fanLogs).length + 
+                           Object.keys(lightLogs).length + Object.keys(refrigeratorLogs).length;
+    
+    if (totalDataPoints === 0) {
+      console.log('No Firebase data found, returning empty data structure');
+      // Return empty data structure (no mock data)
+      const emptyData = {
+        stats: {
+          energyUsage: { value: '0.00 kW', change: 0 },
+          savings: { value: '$0', change: 0 },
+          efficiency: { value: '0.00 kW', change: 0 },
+          automationStatus: { value: 'Auto', change: 0 }
+        },
+        energyData: [],
+        usageData: [
+          { name: 'AC', value: 0, color: '#3b82f6' },
+          { name: 'Lights', value: 0, color: '#8b5cf6' },
+          { name: 'Equipment', value: 0, color: '#10b981' },
+          { name: 'Other', value: 0, color: '#ef4444' }
+        ],
+        revenueData: [
+          { name: 'May', revenue: 0, expenses: 0, profit: 0 }
+        ],
+        alertsData: []
+      };
+      
+      cache = { data: emptyData, lastFetched: now };
+      return new Response(JSON.stringify(emptyData), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
     const allTimestamps = Array.from(
       new Set([
