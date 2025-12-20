@@ -12,13 +12,13 @@ export class EmergencyDeviceRemoval {
    */
   static async removeDevice(deviceId: string): Promise<{ success: boolean; message: string; details?: any }> {
     try {
-      console.log(`🚨 Emergency removal of device: ${deviceId}`);
+      console.log(` Emergency removal of device: ${deviceId}`);
       
       // Use the improved device service method
       const success = await deviceService.removeDevice(deviceId);
       
       if (success) {
-        console.log(`✅ Device ${deviceId} successfully removed`);
+        console.log(` Device ${deviceId} successfully removed`);
         return {
           success: true,
           message: `Device ${deviceId} has been successfully removed`
@@ -31,7 +31,7 @@ export class EmergencyDeviceRemoval {
       }
       
     } catch (error) {
-      console.error(`❌ Failed to remove device ${deviceId}:`, error);
+      console.error(` Failed to remove device ${deviceId}:`, error);
       return {
         success: false,
         message: `Failed to remove device: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -46,10 +46,10 @@ export class EmergencyDeviceRemoval {
   static async listAllDevices(): Promise<any[]> {
     try {
       const devices = deviceService.getDevices();
-      console.log('📋 All devices in Firebase:', devices);
+      console.log(' All devices in Firebase:', devices);
       return devices;
     } catch (error) {
-      console.error('❌ Failed to list devices:', error);
+      console.error(' Failed to list devices:', error);
       return [];
     }
   }
@@ -58,13 +58,13 @@ export class EmergencyDeviceRemoval {
    * Remove multiple devices by IDs
    */
   static async removeMultipleDevices(deviceIds: string[]): Promise<{ success: boolean; results: any[] }> {
-    console.log(`🚨 Emergency removal of ${deviceIds.length} devices:`, deviceIds);
+    console.log(` Emergency removal of ${deviceIds.length} devices:`, deviceIds);
     
     try {
       const result = await deviceService.removeMultipleDevices(deviceIds);
       return result;
     } catch (error) {
-      console.error('❌ Failed to remove multiple devices:', error);
+      console.error(' Failed to remove multiple devices:', error);
       return {
         success: false,
         results: deviceIds.map(id => ({ deviceId: id, success: false, error }))
@@ -77,7 +77,7 @@ export class EmergencyDeviceRemoval {
    */
   static async removeAllDevices(): Promise<{ success: boolean; message: string; count: number }> {
     try {
-      console.log('🚨 NUCLEAR OPTION: Removing ALL devices');
+      console.log(' NUCLEAR OPTION: Removing ALL devices');
       
       // Use the improved device service method
       const result = await deviceService.removeAllDevices();
@@ -86,7 +86,7 @@ export class EmergencyDeviceRemoval {
       return result;
       
     } catch (error) {
-      console.error('❌ Failed to remove all devices:', error);
+      console.error(' Failed to remove all devices:', error);
       return {
         success: false,
         message: `Failed to remove all devices: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -100,7 +100,7 @@ export class EmergencyDeviceRemoval {
    */
   static async forceRemoveAllDevices(): Promise<{ success: boolean; message: string; count: number }> {
     try {
-      console.log('🚨 FORCE REMOVAL: Directly removing ALL devices from Firebase');
+      console.log(' FORCE REMOVAL: Directly removing ALL devices from Firebase');
       
       // Get current devices first
       const devicesRef = ref(db, 'devices');
@@ -133,7 +133,7 @@ export class EmergencyDeviceRemoval {
         };
       }
       
-      console.log(`✅ Force removal successful: ${deviceCount} devices removed`);
+      console.log(` Force removal successful: ${deviceCount} devices removed`);
       return {
         success: true,
         message: `Force removed ${deviceCount} devices from Firebase`,
@@ -141,7 +141,7 @@ export class EmergencyDeviceRemoval {
       };
       
     } catch (error) {
-      console.error('❌ Force removal failed:', error);
+      console.error(' Force removal failed:', error);
       return {
         success: false,
         message: `Force removal failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -155,7 +155,7 @@ export class EmergencyDeviceRemoval {
    */
   static async preventDeviceReappearance(): Promise<{ success: boolean; message: string }> {
     try {
-      console.log('🔍 Checking for device reappearance prevention...');
+      console.log('Checking for device reappearance prevention...');
       
       // First, remove all devices
       const removalResult = await this.forceRemoveAllDevices();
@@ -175,7 +175,7 @@ export class EmergencyDeviceRemoval {
       
       if (snapshot.exists()) {
         const reappearedCount = Object.keys(snapshot.val()).length;
-        console.log(`⚠️ ${reappearedCount} devices reappeared`);
+        console.log(`WARNING: ${reappearedCount} devices reappeared`);
         
         // Try to remove again
         await remove(devicesRef);
@@ -192,7 +192,7 @@ export class EmergencyDeviceRemoval {
       };
       
     } catch (error) {
-      console.error('❌ Prevention check failed:', error);
+      console.error(' Prevention check failed:', error);
       return {
         success: false,
         message: `Prevention check failed: ${error instanceof Error ? error.message : 'Unknown error'}`

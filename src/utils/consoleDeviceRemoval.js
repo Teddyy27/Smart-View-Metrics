@@ -17,18 +17,18 @@ const db = getDatabase();
  * Test Firebase connection and permissions
  */
 async function testFirebaseConnection() {
-  console.log('🔍 Testing Firebase connection...');
+  console.log(' Testing Firebase connection...');
   
   try {
     // Test write
     const testRef = ref(db, 'console-test');
     await set(testRef, { timestamp: Date.now(), test: true });
-    console.log('✅ Write permission: OK');
+    console.log(' Write permission: OK');
     
     // Test read
     const snapshot = await get(testRef);
     if (snapshot.exists()) {
-      console.log('✅ Read permission: OK');
+      console.log(' Read permission: OK');
     } else {
       throw new Error('Write succeeded but read failed');
     }
@@ -37,16 +37,16 @@ async function testFirebaseConnection() {
     await remove(testRef);
     const verifySnapshot = await get(testRef);
     if (!verifySnapshot.exists()) {
-      console.log('✅ Delete permission: OK');
+      console.log(' Delete permission: OK');
     } else {
       throw new Error('Delete failed - data still exists');
     }
     
-    console.log('🎉 All Firebase permissions working correctly!');
+    console.log(' All Firebase permissions working correctly!');
     return true;
     
   } catch (error) {
-    console.error('❌ Firebase test failed:', error);
+    console.error(' Firebase test failed:', error);
     return false;
   }
 }
@@ -55,14 +55,14 @@ async function testFirebaseConnection() {
  * Get detailed information about all devices
  */
 async function getDeviceDetails() {
-  console.log('📋 Getting device details...');
+  console.log(' Getting device details...');
   
   try {
     const devicesRef = ref(db, 'devices');
     const snapshot = await get(devicesRef);
     
     if (!snapshot.exists()) {
-      console.log('📭 No devices found in Firebase');
+      console.log(' No devices found in Firebase');
       return [];
     }
     
@@ -74,7 +74,7 @@ async function getDeviceDetails() {
       lastModified: data[id].lastUpdated || 'unknown'
     }));
     
-    console.log(`📊 Found ${devices.length} devices:`);
+    console.log(` Found ${devices.length} devices:`);
     devices.forEach(device => {
       console.log(`  - ${device.id}: ${device.name} (${device.type}) - ${device.status}`);
     });
@@ -82,7 +82,7 @@ async function getDeviceDetails() {
     return devices;
     
   } catch (error) {
-    console.error('❌ Failed to get device details:', error);
+    console.error(' Failed to get device details:', error);
     return [];
   }
 }
@@ -91,7 +91,7 @@ async function getDeviceDetails() {
  * Monitor device changes in real-time
  */
 function monitorDeviceChanges(duration = 10000) {
-  console.log(`🔍 Monitoring device changes for ${duration}ms...`);
+  console.log(` Monitoring device changes for ${duration}ms...`);
   
   const devicesRef = ref(db, 'devices');
   const changes = [];
@@ -108,18 +108,18 @@ function monitorDeviceChanges(duration = 10000) {
       deviceIds: data ? Object.keys(data) : []
     });
     
-    console.log(`📊 [${new Date(timestamp).toLocaleTimeString()}] Device count: ${deviceCount}`);
+    console.log(` [${new Date(timestamp).toLocaleTimeString()}] Device count: ${deviceCount}`);
   });
   
   // Stop monitoring after duration
   setTimeout(() => {
     off(devicesRef, 'value', listener);
-    console.log(`✅ Monitoring completed. ${changes.length} changes detected.`);
+    console.log(` Monitoring completed. ${changes.length} changes detected.`);
     
     if (changes.length > 1) {
-      console.log('⚠️ Devices are being modified! Check for other sources adding devices.');
+      console.log('WARNING: Devices are being modified! Check for other sources adding devices.');
     } else {
-      console.log('✅ No unexpected device changes detected.');
+      console.log(' No unexpected device changes detected.');
     }
   }, duration);
   
@@ -130,7 +130,7 @@ function monitorDeviceChanges(duration = 10000) {
  * Test device path permissions
  */
 async function testDevicePermissions(deviceId) {
-  console.log(`🔍 Testing permissions for device: ${deviceId}`);
+  console.log(` Testing permissions for device: ${deviceId}`);
   
   try {
     const deviceRef = ref(db, `devices/${deviceId}`);
@@ -138,7 +138,7 @@ async function testDevicePermissions(deviceId) {
     // Test read
     const snapshot = await get(deviceRef);
     const canRead = snapshot.exists();
-    console.log(`  Read: ${canRead ? '✅' : '❌'}`);
+    console.log(`  Read: ${canRead ? '' : ''}`);
     
     if (!canRead) {
       console.log(`  Device ${deviceId} does not exist`);
@@ -149,13 +149,13 @@ async function testDevicePermissions(deviceId) {
     const originalData = snapshot.val();
     const testData = { ...originalData, testWrite: Date.now() };
     await set(deviceRef, testData);
-    console.log(`  Write: ✅`);
+    console.log(`  Write: `);
     
     // Test delete
     await remove(deviceRef);
     const deleteSnapshot = await get(deviceRef);
     const canDelete = !deleteSnapshot.exists();
-    console.log(`  Delete: ${canDelete ? '✅' : '❌'}`);
+    console.log(`  Delete: ${canDelete ? '' : ''}`);
     
     // Restore original data
     if (canDelete) {
@@ -166,7 +166,7 @@ async function testDevicePermissions(deviceId) {
     return canRead && canDelete;
     
   } catch (error) {
-    console.error(`❌ Permission test failed for ${deviceId}:`, error);
+    console.error(` Permission test failed for ${deviceId}:`, error);
     return false;
   }
 }
@@ -187,7 +187,7 @@ async function listAllDevices() {
  * Remove a specific device
  */
 async function removeDevice(deviceId) {
-  console.log(`🗑️ Removing device: ${deviceId}`);
+  console.log(` Removing device: ${deviceId}`);
   
   try {
     // Check if device exists
@@ -195,7 +195,7 @@ async function removeDevice(deviceId) {
     const snapshot = await get(deviceRef);
     
     if (!snapshot.exists()) {
-      console.log(`❌ Device ${deviceId} does not exist`);
+      console.log(` Device ${deviceId} does not exist`);
       return false;
     }
     
@@ -208,15 +208,15 @@ async function removeDevice(deviceId) {
     // Verify removal
     const verifySnapshot = await get(deviceRef);
     if (!verifySnapshot.exists()) {
-      console.log(`✅ Device ${deviceId} successfully removed`);
+      console.log(` Device ${deviceId} successfully removed`);
       return true;
     } else {
-      console.log(`❌ Device ${deviceId} still exists after removal`);
+      console.log(` Device ${deviceId} still exists after removal`);
       return false;
     }
     
   } catch (error) {
-    console.error(`❌ Failed to remove device ${deviceId}:`, error);
+    console.error(` Failed to remove device ${deviceId}:`, error);
     return false;
   }
 }
@@ -225,13 +225,13 @@ async function removeDevice(deviceId) {
  * Remove device by name
  */
 async function removeByName(deviceName) {
-  console.log(`🗑️ Removing device by name: ${deviceName}`);
+  console.log(` Removing device by name: ${deviceName}`);
   
   const devices = await getDeviceDetails();
   const device = devices.find(d => d.name === deviceName);
   
   if (!device) {
-    console.log(`❌ No device found with name: ${deviceName}`);
+    console.log(` No device found with name: ${deviceName}`);
     return false;
   }
   
@@ -242,12 +242,12 @@ async function removeByName(deviceName) {
  * Remove all devices
  */
 async function removeAll() {
-  console.log('🚨 REMOVING ALL DEVICES');
+  console.log(' REMOVING ALL DEVICES');
   
   const devices = await getDeviceDetails();
   
   if (devices.length === 0) {
-    console.log('📭 No devices to remove');
+    console.log(' No devices to remove');
     return true;
   }
   
@@ -255,7 +255,7 @@ async function removeAll() {
   devices.forEach(d => console.log(`  - ${d.id}: ${d.name}`));
   
   if (!confirm(`Are you sure you want to remove ALL ${devices.length} devices?`)) {
-    console.log('❌ Operation cancelled');
+    console.log(' Operation cancelled');
     return false;
   }
   
@@ -267,10 +267,10 @@ async function removeAll() {
   }
   
   const successCount = results.filter(r => r.success).length;
-  console.log(`✅ Removed ${successCount}/${devices.length} devices`);
+  console.log(` Removed ${successCount}/${devices.length} devices`);
   
   results.forEach(result => {
-    console.log(`  ${result.success ? '✅' : '❌'} ${result.name} (${result.deviceId})`);
+    console.log(`  ${result.success ? '' : ''} ${result.name} (${result.deviceId})`);
   });
   
   return successCount === devices.length;
@@ -283,7 +283,7 @@ async function forceRemoveAll() {
   console.log('💥 FORCE REMOVING ALL DEVICES');
   
   if (!confirm('This will force remove ALL devices from Firebase. Are you absolutely sure?')) {
-    console.log('❌ Operation cancelled');
+    console.log(' Operation cancelled');
     return false;
   }
   
@@ -297,15 +297,15 @@ async function forceRemoveAll() {
     
     const verifySnapshot = await get(devicesRef);
     if (!verifySnapshot.exists()) {
-      console.log('✅ Force removal successful - all devices removed');
+      console.log(' Force removal successful - all devices removed');
       return true;
     } else {
-      console.log('❌ Force removal failed - devices still exist');
+      console.log(' Force removal failed - devices still exist');
       return false;
     }
     
   } catch (error) {
-    console.error('❌ Force removal failed:', error);
+    console.error(' Force removal failed:', error);
     return false;
   }
 }
@@ -328,16 +328,16 @@ async function runDiagnostic() {
   };
   
   // Test connection
-  console.log('\n1️⃣ Testing Firebase connection...');
+  console.log('\n1. Testing Firebase connection...');
   results.connection = await testFirebaseConnection();
   
   // Get devices
-  console.log('\n2️⃣ Getting device information...');
+  console.log('\n2. Getting device information...');
   results.devices = await getDeviceDetails();
   
   // Test permissions for each device
   if (results.devices.length > 0) {
-    console.log('\n3️⃣ Testing device permissions...');
+    console.log('\n3. Testing device permissions...');
     for (const device of results.devices.slice(0, 3)) { // Test first 3 devices
       const hasPermissions = await testDevicePermissions(device.id);
       results.permissions.push({ deviceId: device.id, name: device.name, hasPermissions });
@@ -345,25 +345,25 @@ async function runDiagnostic() {
   }
   
   // Monitor for changes
-  console.log('\n4️⃣ Monitoring for device changes (5 seconds)...');
+  console.log('\n4. Monitoring for device changes (5 seconds)...');
   const monitoring = monitorDeviceChanges(5000);
   results.monitoring = monitoring;
   
   // Wait for monitoring to complete
   await new Promise(resolve => setTimeout(resolve, 6000));
   
-  console.log('\n📊 DIAGNOSTIC RESULTS:');
-  console.log(`  Connection: ${results.connection ? '✅' : '❌'}`);
+  console.log('\n DIAGNOSTIC RESULTS:');
+  console.log(`  Connection: ${results.connection ? '' : ''}`);
   console.log(`  Devices: ${results.devices.length}`);
   console.log(`  Permissions: ${results.permissions.filter(p => p.hasPermissions).length}/${results.permissions.length}`);
   
   if (!results.connection) {
-    console.log('\n❌ FIREBASE CONNECTION ISSUE DETECTED');
+    console.log('\n FIREBASE CONNECTION ISSUE DETECTED');
     console.log('   This is likely a Firebase configuration or permission problem.');
   }
   
   if (results.devices.length > 0 && results.permissions.some(p => !p.hasPermissions)) {
-    console.log('\n⚠️ DEVICE PERMISSION ISSUES DETECTED');
+    console.log('\nWARNING: DEVICE PERMISSION ISSUES DETECTED');
     console.log('   Some devices cannot be modified or deleted.');
   }
   
@@ -390,7 +390,7 @@ window.FirebaseDebug = {
   forceRemoveAll
 };
 
-console.log('🔧 Firebase Debug Tools loaded!');
+console.log('Firebase Debug Tools loaded!');
 console.log('Available functions:');
 console.log('  FirebaseDebug.testConnection() - Test Firebase connection');
 console.log('  FirebaseDebug.getDeviceDetails() - Get all device details');
@@ -410,7 +410,7 @@ console.log('  FirebaseDebug.forceRemoveAll() - Force remove all devices');
  * Monitor for device recreation after deletion
  */
 function monitorDeviceRecreation(duration = 30000) {
-  console.log(`🔍 Monitoring device recreation for ${duration}ms...`);
+  console.log(` Monitoring device recreation for ${duration}ms...`);
   
   const devicesRef = ref(db, 'devices');
   let initialDevices = {};
@@ -425,7 +425,7 @@ function monitorDeviceRecreation(duration = 30000) {
     // First time - record initial state
     if (Object.keys(initialDevices).length === 0) {
       initialDevices = { ...currentData };
-      console.log(`📊 Initial state: ${currentDeviceIds.length} devices`);
+      console.log(` Initial state: ${currentDeviceIds.length} devices`);
       return;
     }
     
@@ -434,7 +434,7 @@ function monitorDeviceRecreation(duration = 30000) {
     // Check for deletions
     for (const deviceId of initialDeviceIds) {
       if (!currentDeviceIds.includes(deviceId) && !deletedDevices.has(deviceId)) {
-        console.log(`🗑️ Device deleted: ${deviceId}`);
+        console.log(` Device deleted: ${deviceId}`);
         deletedDevices.add(deviceId);
         deletionStartTime[deviceId] = Date.now();
       }
@@ -447,7 +447,7 @@ function monitorDeviceRecreation(duration = 30000) {
         const originalData = initialDevices[deviceId];
         const recreatedData = currentData[deviceId];
         
-        console.log(`⚠️ DEVICE RECREATED: ${deviceId} after ${timeToRecreate}ms`);
+        console.log(`WARNING: DEVICE RECREATED: ${deviceId} after ${timeToRecreate}ms`);
         console.log('Original:', originalData);
         console.log('Recreated:', recreatedData);
         
@@ -469,15 +469,15 @@ function monitorDeviceRecreation(duration = 30000) {
   // Stop monitoring after duration
   setTimeout(() => {
     off(devicesRef, 'value', listener);
-    console.log(`✅ Recreation monitoring completed. ${recreations.length} recreations detected.`);
+    console.log(` Recreation monitoring completed. ${recreations.length} recreations detected.`);
     
     if (recreations.length > 0) {
-      console.log('⚠️ DEVICE RECREATION ISSUE CONFIRMED!');
+      console.log('WARNING: DEVICE RECREATION ISSUE CONFIRMED!');
       recreations.forEach(r => {
         console.log(`  - ${r.deviceId}: recreated after ${r.timeToRecreate}ms`);
       });
     } else {
-      console.log('✅ No device recreation detected');
+      console.log(' No device recreation detected');
     }
   }, duration);
   
@@ -488,7 +488,7 @@ function monitorDeviceRecreation(duration = 30000) {
  * Test device deletion and monitor for recreation
  */
 async function testDeviceDeletion(deviceId) {
-  console.log(`🧪 Testing deletion of device: ${deviceId}`);
+  console.log(` Testing deletion of device: ${deviceId}`);
   
   try {
     // Get original device data
@@ -496,7 +496,7 @@ async function testDeviceDeletion(deviceId) {
     const originalSnapshot = await get(deviceRef);
     
     if (!originalSnapshot.exists()) {
-      console.log(`❌ Device ${deviceId} does not exist`);
+      console.log(` Device ${deviceId} does not exist`);
       return false;
     }
     
@@ -508,7 +508,7 @@ async function testDeviceDeletion(deviceId) {
     
     // Delete the device
     await remove(deviceRef);
-    console.log(`🗑️ Deleted device: ${deviceId}`);
+    console.log(` Deleted device: ${deviceId}`);
     
     // Wait for monitoring to complete
     await new Promise(resolve => setTimeout(resolve, 11000));
@@ -516,7 +516,7 @@ async function testDeviceDeletion(deviceId) {
     return true;
     
   } catch (error) {
-    console.error(`❌ Test deletion failed for ${deviceId}:`, error);
+    console.error(` Test deletion failed for ${deviceId}:`, error);
     return false;
   }
 }
@@ -531,6 +531,6 @@ console.log('  FirebaseDebug.testDeviceDeletion(id) - Test deletion with recreat
 
 // Auto-run diagnostic if requested
 if (window.location.search.includes('debug=true')) {
-  console.log('🔍 Auto-running diagnostic...');
+  console.log(' Auto-running diagnostic...');
   runDiagnostic();
 } 

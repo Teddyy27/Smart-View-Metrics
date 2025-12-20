@@ -33,12 +33,12 @@ class DeviceService {
   }
 
   private initializeFirebaseListener() {
-    console.log('🔍 Initializing Firebase device listener...');
+    console.log('Initializing Firebase device listener...');
     
     // Listen to the devices node in Firebase
     const devicesRef = ref(db, 'devices');
     this.firebaseListener = onValue(devicesRef, (snapshot) => {
-      console.log('📡 Firebase device listener triggered');
+      console.log('Firebase device listener triggered');
       
       // Skip updates during bulk operations to prevent conflicts
       if (this.isBulkOperation) {
@@ -59,7 +59,7 @@ class DeviceService {
         const newDeviceCount = newDevices.length;
         
         if (newDeviceCount > previousDeviceCount) {
-          console.warn(`⚠️ DEVICE COUNT INCREASED: ${previousDeviceCount} → ${newDeviceCount}`);
+          console.warn(`WARNING: DEVICE COUNT INCREASED: ${previousDeviceCount} -> ${newDeviceCount}`);
           console.warn('New devices detected:', newDevices.filter(d => !this.devices.find(od => od.id === d.id)));
         }
         
@@ -68,7 +68,7 @@ class DeviceService {
         this.devices = [];
       }
       
-      console.log(`📊 Current device count: ${this.devices.length}`);
+      console.log(`Current device count: ${this.devices.length}`);
       this.notifyListeners();
     });
   }
@@ -124,7 +124,7 @@ class DeviceService {
   // Control automatic device creation
   setAutomaticCreationEnabled(enabled: boolean): void {
     this.isAutomaticCreationDisabled = !enabled;
-    console.log(`🔧 Automatic device creation ${enabled ? 'enabled' : 'disabled'}`);
+    console.log(`Automatic device creation ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   isAutomaticCreationEnabled(): boolean {
@@ -145,7 +145,7 @@ class DeviceService {
       stack: new Error().stack?.split('\n').slice(2, 6).join('\n') // Get call stack
     };
     
-    console.group(`🔍 Device Creation Attempt from ${caller}`);
+    console.group(`Device Creation Attempt from ${caller}`);
     console.log('Timestamp:', logData.timestamp);
     console.log('Caller:', caller);
     console.log('Data:', data);
@@ -179,7 +179,7 @@ class DeviceService {
       // Add device to Firebase
       await set(ref(db, `devices/${deviceId}`), newDevice);
       
-      console.log(`✅ Device added successfully: ${name} (${deviceId})`);
+      console.log(`Device added successfully: ${name} (${deviceId})`);
       return newDevice;
     } catch (error) {
       console.error('Error adding device:', error);
@@ -270,7 +270,7 @@ class DeviceService {
   // Remove all devices (nuclear option)
   async removeAllDevices(): Promise<{ success: boolean; message: string; count: number }> {
     try {
-      console.log('🚨 NUCLEAR OPTION: Removing ALL devices');
+      console.log('NUCLEAR OPTION: Removing ALL devices');
       
       // Set bulk operation flag
       this.isBulkOperation = true;
@@ -299,7 +299,7 @@ class DeviceService {
       this.devices = [];
       this.notifyListeners();
       
-      console.log(`✅ Successfully removed all ${deviceIds.length} devices`);
+      console.log(`Successfully removed all ${deviceIds.length} devices`);
       
       return {
         success: true,
@@ -308,7 +308,7 @@ class DeviceService {
       };
       
     } catch (error) {
-      console.error('❌ Failed to remove all devices:', error);
+      console.error('Failed to remove all devices:', error);
       return {
         success: false,
         message: `Failed to remove all devices: ${error instanceof Error ? error.message : 'Unknown error'}`,

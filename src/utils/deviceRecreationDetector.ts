@@ -28,10 +28,10 @@ export class DeviceRecreationDetector {
       devicesRecreated: string[];
     };
   }> {
-    console.log('🔍 Starting device recreation monitoring...');
+    console.log(' Starting device recreation monitoring...');
     
     if (this.isMonitoring) {
-      console.log('⚠️ Already monitoring, stopping previous session');
+      console.log('WARNING: Already monitoring, stopping previous session');
       this.stopMonitoring();
     }
 
@@ -60,7 +60,7 @@ export class DeviceRecreationDetector {
         // First time - record initial state
         if (Object.keys(initialDevices).length === 0) {
           initialDevices = { ...currentData };
-          console.log(`📊 Initial state: ${currentDeviceIds.length} devices`);
+          console.log(` Initial state: ${currentDeviceIds.length} devices`);
           return;
         }
 
@@ -69,7 +69,7 @@ export class DeviceRecreationDetector {
         // Check for deletions
         for (const deviceId of initialDeviceIds) {
           if (!currentDeviceIds.includes(deviceId) && !this.deletedDevices.has(deviceId)) {
-            console.log(`🗑️ Device deleted: ${deviceId}`);
+            console.log(` Device deleted: ${deviceId}`);
             this.deletedDevices.add(deviceId);
             deletionStartTime[deviceId] = Date.now();
           }
@@ -82,7 +82,7 @@ export class DeviceRecreationDetector {
             const originalData = initialDevices[deviceId];
             const recreatedData = currentData[deviceId];
 
-            console.log(`⚠️ DEVICE RECREATED: ${deviceId} after ${timeToRecreate}ms`);
+            console.log(`WARNING: DEVICE RECREATED: ${deviceId} after ${timeToRecreate}ms`);
             console.log('Original:', originalData);
             console.log('Recreated:', recreatedData);
 
@@ -122,7 +122,7 @@ export class DeviceRecreationDetector {
           devicesRecreated: recreations.map(r => r.deviceId)
         };
 
-        console.log('📊 Recreation monitoring summary:', summary);
+        console.log(' Recreation monitoring summary:', summary);
         
         resolve({
           success: true,
@@ -154,7 +154,7 @@ export class DeviceRecreationDetector {
     originalData?: any;
     recreatedData?: any;
   }> {
-    console.log(`🧪 Testing deletion of device: ${deviceId}`);
+    console.log(` Testing deletion of device: ${deviceId}`);
 
     try {
       // Get original device data
@@ -173,7 +173,7 @@ export class DeviceRecreationDetector {
       
       // Delete the device
       await remove(deviceRef);
-      console.log(`🗑️ Deleted device: ${deviceId}`);
+      console.log(` Deleted device: ${deviceId}`);
 
       // Wait for monitoring results
       const monitoringResult = await monitoringPromise;
@@ -182,7 +182,7 @@ export class DeviceRecreationDetector {
       const recreation = monitoringResult.recreations.find(r => r.deviceId === deviceId);
       
       if (recreation) {
-        console.log(`⚠️ Device ${deviceId} was recreated after ${recreation.timeToRecreate}ms`);
+        console.log(`WARNING: Device ${deviceId} was recreated after ${recreation.timeToRecreate}ms`);
         return {
           success: true,
           wasRecreated: true,
@@ -191,7 +191,7 @@ export class DeviceRecreationDetector {
           recreatedData: recreation.recreatedData
         };
       } else {
-        console.log(`✅ Device ${deviceId} was not recreated`);
+        console.log(` Device ${deviceId} was not recreated`);
         return {
           success: true,
           wasRecreated: false
@@ -199,7 +199,7 @@ export class DeviceRecreationDetector {
       }
 
     } catch (error) {
-      console.error(`❌ Test deletion failed for ${deviceId}:`, error);
+      console.error(` Test deletion failed for ${deviceId}:`, error);
       return {
         success: false,
         wasRecreated: false
@@ -215,7 +215,7 @@ export class DeviceRecreationDetector {
     potentialSources: string[];
     recommendations: string[];
   }> {
-    console.log('🔍 Identifying potential recreation sources...');
+    console.log(' Identifying potential recreation sources...');
 
     const potentialSources: string[] = [];
     const recommendations: string[] = [];
@@ -256,7 +256,7 @@ export class DeviceRecreationDetector {
       };
 
     } catch (error) {
-      console.error('❌ Failed to identify recreation sources:', error);
+      console.error(' Failed to identify recreation sources:', error);
       return {
         success: false,
         potentialSources: [],
@@ -336,7 +336,7 @@ export class DeviceRecreationDetector {
     message: string;
     steps: string[];
   }> {
-    console.log(`🛡️ Attempting to prevent recreation of device: ${deviceId}`);
+    console.log(` Attempting to prevent recreation of device: ${deviceId}`);
 
     const steps: string[] = [];
     

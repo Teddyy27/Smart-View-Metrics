@@ -404,8 +404,8 @@ const SettingsPage = () => {
     try {
       const result = await runDeviceSyncTest();
       setTestResult(result.success ? 
-        `✅ ${result.message}` : 
-        `❌ ${result.message}`
+        ` ${result.message}` : 
+        ` ${result.message}`
       );
       
       if (result.success) {
@@ -421,7 +421,7 @@ const SettingsPage = () => {
         });
       }
     } catch (error) {
-      setTestResult(`❌ Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setTestResult(` Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       toast({
         title: "Test Error",
         description: "An error occurred during the test.",
@@ -503,7 +503,7 @@ const SettingsPage = () => {
 
   const handleFirebaseDebug = async () => {
     try {
-      console.log('🔍 Running comprehensive Firebase debug...');
+      console.log(' Running comprehensive Firebase debug...');
       
       const diagnosticResult = await FirebaseDebugger.runFullDiagnostic();
       
@@ -537,7 +537,7 @@ const SettingsPage = () => {
 
   const handleMonitorDevices = async () => {
     try {
-      console.log('🔍 Monitoring device changes...');
+      console.log(' Monitoring device changes...');
       
       const monitoringResult = await FirebaseDebugger.monitorDeviceChanges(10000); // 10 seconds
       
@@ -563,7 +563,7 @@ const SettingsPage = () => {
 
   const handleGetDeviceDetails = async () => {
     try {
-      console.log('🔍 Getting detailed device information...');
+      console.log(' Getting detailed device information...');
       
       const deviceResult = await FirebaseDebugger.getDeviceDetails();
       
@@ -597,7 +597,7 @@ const SettingsPage = () => {
 
   const handleMonitorDeviceRecreation = async () => {
     try {
-      console.log('🔍 Monitoring device recreation...');
+      console.log(' Monitoring device recreation...');
       
       const recreationResult = await DeviceRecreationDetector.monitorDeviceRecreation(15000); // 15 seconds
       
@@ -652,7 +652,7 @@ const SettingsPage = () => {
       }
       
       const testDevice = allDevices[0];
-      console.log(`🧪 Testing deletion of device: ${testDevice.id} (${testDevice.name})`);
+      console.log(` Testing deletion of device: ${testDevice.id} (${testDevice.name})`);
       
       const deletionResult = await DeviceRecreationDetector.testDeviceDeletion(testDevice.id);
       
@@ -687,7 +687,7 @@ const SettingsPage = () => {
 
   const handleIdentifyRecreationSources = async () => {
     try {
-      console.log('🔍 Identifying recreation sources...');
+      console.log(' Identifying recreation sources...');
       
       const sourcesResult = await DeviceRecreationDetector.identifyRecreationSources();
       
@@ -770,12 +770,12 @@ const SettingsPage = () => {
   };
 
   const handleEmergencyRemoveAll = async () => {
-    if (!confirm('⚠️ WARNING: This will remove ALL devices from Firebase. Are you sure?')) {
+    if (!confirm('WARNING: WARNING: This will remove ALL devices from Firebase. Are you sure?')) {
       return;
     }
 
     try {
-      console.log('🚨 Emergency removal of all devices');
+      console.log(' Emergency removal of all devices');
       
       const result = await EmergencyDeviceRemoval.removeAllDevices();
       
@@ -805,12 +805,12 @@ const SettingsPage = () => {
   };
 
   const handleForceRemoveAll = async () => {
-    if (!confirm('🚨 FORCE REMOVAL: This will bypass the device service and directly remove ALL devices from Firebase. Are you absolutely sure?')) {
+    if (!confirm(' FORCE REMOVAL: This will bypass the device service and directly remove ALL devices from Firebase. Are you absolutely sure?')) {
       return;
     }
 
     try {
-      console.log('🚨 Force removal of all devices');
+      console.log(' Force removal of all devices');
       
       const result = await EmergencyDeviceRemoval.forceRemoveAllDevices();
       
@@ -840,12 +840,12 @@ const SettingsPage = () => {
   };
 
   const handlePreventReappearance = async () => {
-    if (!confirm('🔍 This will remove all devices and check if they reappear. Continue?')) {
+    if (!confirm(' This will remove all devices and check if they reappear. Continue?')) {
       return;
     }
 
     try {
-      console.log('🔍 Preventing device reappearance');
+      console.log(' Preventing device reappearance');
       
       const result = await EmergencyDeviceRemoval.preventDeviceReappearance();
       
@@ -1274,7 +1274,7 @@ const SettingsPage = () => {
                     variant="outline"
                     className="w-full"
                   >
-                    🔍 Firebase Diagnostic
+ Firebase Diagnostic
                   </Button>
                   
                   <Button 
@@ -1282,7 +1282,7 @@ const SettingsPage = () => {
                     variant="outline"
                     className="w-full"
                   >
-                    📊 Monitor Device Changes
+ Monitor Device Changes
                   </Button>
                   
                   <Button 
@@ -1290,7 +1290,7 @@ const SettingsPage = () => {
                     variant="outline"
                     className="w-full"
                   >
-                    📋 Get Device Details
+                    Get Device Details
                   </Button>
                   
                   <div className="space-y-2">
@@ -1318,7 +1318,7 @@ const SettingsPage = () => {
                     variant="destructive"
                     className="w-full"
                   >
-                    🚨 Remove ALL Devices (Nuclear Option)
+ Remove ALL Devices (Nuclear Option)
                   </Button>
                   
                   <Button 
@@ -1326,7 +1326,7 @@ const SettingsPage = () => {
                     variant="destructive"
                     className="w-full"
                   >
-                    💥 Force Remove ALL Devices (Bypass Service)
+                    Force Remove ALL Devices (Bypass Service)
                   </Button>
                   
                   <Button 
@@ -1348,7 +1348,7 @@ const SettingsPage = () => {
                     variant="outline"
                     className="w-full"
                   >
-                    🧹 Clean Up Duplicate Devices
+                     Clean Up Duplicate Devices
                   </Button>
                   
                   <div className="flex items-center justify-between p-3 border rounded-lg bg-red-50">
@@ -1365,7 +1365,7 @@ const SettingsPage = () => {
                   
                   {testResult && (
                     <div className={`p-3 rounded-lg text-sm ${
-                      testResult.startsWith('✅') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                      testResult.startsWith('') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
                     }`}>
                       {testResult}
                     </div>

@@ -98,7 +98,7 @@ export class DeviceSyncTester {
         };
       }
 
-      console.log('✅ Device addition test passed');
+      console.log(' Device addition test passed');
       return {
         success: true,
         message: 'Device addition test passed',
@@ -131,7 +131,7 @@ export class DeviceSyncTester {
         };
       }
 
-      console.log('✅ Device retrieval test passed');
+      console.log(' Device retrieval test passed');
       return {
         success: true,
         message: 'Device retrieval test passed',
@@ -167,7 +167,7 @@ export class DeviceSyncTester {
         };
       }
 
-      console.log('✅ Device state changes test passed');
+      console.log(' Device state changes test passed');
       return {
         success: true,
         message: 'Device state changes test passed',
@@ -220,7 +220,7 @@ export class DeviceSyncTester {
     try {
       console.log('Cleaning up test device...');
       await deviceService.removeDevice(this.testDeviceId);
-      console.log('✅ Test device cleaned up successfully');
+      console.log(' Test device cleaned up successfully');
     } catch (error) {
       console.error('Error cleaning up test device:', error);
     }

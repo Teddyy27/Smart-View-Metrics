@@ -11,7 +11,7 @@ export class FirebaseDebugger {
    */
   static async testConnection(): Promise<{ success: boolean; details: any }> {
     try {
-      console.log('🔍 Testing Firebase connection...');
+      console.log(' Testing Firebase connection...');
       
       // Test read permission
       const testRef = ref(db, 'test-connection');
@@ -32,7 +32,7 @@ export class FirebaseDebugger {
         throw new Error('Delete operation failed - data still exists');
       }
       
-      console.log('✅ Firebase connection test passed');
+      console.log(' Firebase connection test passed');
       return {
         success: true,
         details: {
@@ -44,7 +44,7 @@ export class FirebaseDebugger {
       };
       
     } catch (error) {
-      console.error('❌ Firebase connection test failed:', error);
+      console.error(' Firebase connection test failed:', error);
       return {
         success: false,
         details: {
@@ -60,7 +60,7 @@ export class FirebaseDebugger {
    */
   static async testDevicePathPermissions(deviceId: string): Promise<{ success: boolean; details: any }> {
     try {
-      console.log(`🔍 Testing device path permissions for: ${deviceId}`);
+      console.log(` Testing device path permissions for: ${deviceId}`);
       
       const deviceRef = ref(db, `devices/${deviceId}`);
       
@@ -93,7 +93,7 @@ export class FirebaseDebugger {
         await set(deviceRef, testData.originalData);
       }
       
-      console.log(`✅ Device path permissions test completed for ${deviceId}`);
+      console.log(` Device path permissions test completed for ${deviceId}`);
       return {
         success: canRead && canWrite && canDelete,
         details: {
@@ -106,7 +106,7 @@ export class FirebaseDebugger {
       };
       
     } catch (error) {
-      console.error(`❌ Device path permissions test failed for ${deviceId}:`, error);
+      console.error(` Device path permissions test failed for ${deviceId}:`, error);
       return {
         success: false,
         details: {
@@ -141,7 +141,7 @@ export class FirebaseDebugger {
    */
   static async getDeviceDetails(): Promise<{ success: boolean; devices: any[]; details: any }> {
     try {
-      console.log('🔍 Getting detailed device information...');
+      console.log(' Getting detailed device information...');
       
       const devicesRef = ref(db, 'devices');
       const snapshot = await get(devicesRef);
@@ -162,7 +162,7 @@ export class FirebaseDebugger {
         lastModified: data[id].lastUpdated || 'unknown'
       }));
       
-      console.log(`✅ Found ${devices.length} devices in Firebase`);
+      console.log(` Found ${devices.length} devices in Firebase`);
       return {
         success: true,
         devices,
@@ -174,7 +174,7 @@ export class FirebaseDebugger {
       };
       
     } catch (error) {
-      console.error('❌ Failed to get device details:', error);
+      console.error(' Failed to get device details:', error);
       return {
         success: false,
         devices: [],
@@ -191,7 +191,7 @@ export class FirebaseDebugger {
    */
   static async monitorDeviceChanges(duration: number = 10000): Promise<{ success: boolean; changes: any[] }> {
     return new Promise((resolve) => {
-      console.log(`🔍 Monitoring device changes for ${duration}ms...`);
+      console.log(` Monitoring device changes for ${duration}ms...`);
       
       const devicesRef = ref(db, 'devices');
       const changes: any[] = [];
@@ -208,13 +208,13 @@ export class FirebaseDebugger {
           deviceIds: data ? Object.keys(data) : []
         });
         
-        console.log(`📊 Device count at ${new Date(timestamp).toLocaleTimeString()}: ${deviceCount}`);
+        console.log(` Device count at ${new Date(timestamp).toLocaleTimeString()}: ${deviceCount}`);
       });
       
       // Stop monitoring after duration
       setTimeout(() => {
         off(devicesRef, 'value', listener);
-        console.log(`✅ Device monitoring completed. ${changes.length} changes detected.`);
+        console.log(` Device monitoring completed. ${changes.length} changes detected.`);
         resolve({
           success: true,
           changes
@@ -228,7 +228,7 @@ export class FirebaseDebugger {
    */
   static async testFirebaseRules(): Promise<{ success: boolean; results: any }> {
     try {
-      console.log('🔍 Testing Firebase security rules...');
+      console.log(' Testing Firebase security rules...');
       
       const results = {
         read: false,
@@ -244,7 +244,7 @@ export class FirebaseDebugger {
         await get(testRef);
         results.read = true;
       } catch (error) {
-        console.log('❌ Read access denied');
+        console.log(' Read access denied');
       }
       
       // Test write access
@@ -253,7 +253,7 @@ export class FirebaseDebugger {
         await set(testRef, { test: true, timestamp: Date.now() });
         results.write = true;
       } catch (error) {
-        console.log('❌ Write access denied');
+        console.log(' Write access denied');
       }
       
       // Test delete access
@@ -262,7 +262,7 @@ export class FirebaseDebugger {
         await remove(testRef);
         results.delete = true;
       } catch (error) {
-        console.log('❌ Delete access denied');
+        console.log(' Delete access denied');
       }
       
       // Test admin access (try to access .info)
@@ -271,17 +271,17 @@ export class FirebaseDebugger {
         await get(infoRef);
         results.admin = true;
       } catch (error) {
-        console.log('❌ Admin access denied (expected)');
+        console.log(' Admin access denied (expected)');
       }
       
-      console.log('✅ Firebase rules test completed');
+      console.log(' Firebase rules test completed');
       return {
         success: results.read && results.write && results.delete,
         results
       };
       
     } catch (error) {
-      console.error('❌ Firebase rules test failed:', error);
+      console.error(' Firebase rules test failed:', error);
       return {
         success: false,
         results: {
@@ -323,14 +323,14 @@ export class FirebaseDebugger {
                            results.rules?.success && 
                            results.devices?.success;
       
-      console.log('✅ Full diagnostic completed');
+      console.log(' Full diagnostic completed');
       return {
         success: overallSuccess,
         results
       };
       
     } catch (error) {
-      console.error('❌ Full diagnostic failed:', error);
+      console.error(' Full diagnostic failed:', error);
       return {
         success: false,
         results: {
