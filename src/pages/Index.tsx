@@ -137,7 +137,7 @@ const Dashboard = () => {
       roomDevices.forEach(device => {
         const powerData = calculateDevicePower(device.id);
         totalRoomPower += powerData.total;
-        latestRoomPower += powerData.latest;
+        latestRoomPower += powerData.latest/1000;
       });
 
       return {
@@ -170,7 +170,7 @@ const Dashboard = () => {
   // Calculate peak usage from room power data
   const peakPower = useMemo(() => {
     if (roomStats.length === 0) return 0;
-    return Math.max(...roomStats.map(room => room.latestPower)) / 1000;
+    return Math.max(...roomStats.map(room => room.latestPower)) ;
   }, [roomStats]);
   
   const efficiency = { 
