@@ -1,14 +1,21 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import DataTable from '@/components/dashboard/DataTable';
 import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
 import { useUserData } from '@/hooks/useUserData';
-import { Bolt, Zap, Gauge } from 'lucide-react';
+import { useDevices } from '@/hooks/useDevices';
+import { deviceService } from '@/services/deviceService';
+import { Bolt, Zap, Gauge, Home } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 
 const Analytics = () => {
   const { data, isLoading: loading } = useRealtimeDashboardData();
   const { trackPageAccess } = useUserData();
+  const { devices } = useDevices();
+  const [selectedRoom, setSelectedRoom] = useState<string>('All Rooms');
 
   // Track page access when component mounts
   useEffect(() => {
@@ -26,36 +33,209 @@ const Analytics = () => {
     return `${(baseValue * multiplier).toFixed(3)} kWh`;
   };
 
+  // Get all rooms (only rooms that have devices)
+  const allRooms = useMemo(() => {
+    const rooms = deviceService.getAllRooms();
+    // Only show rooms that actually have devices
+    return ['All Rooms', ...rooms];
+  }, [devices]);
+
+  // Filter devices by selected room
+  const filteredDevices = useMemo(() => {
+    if (selectedRoom === 'All Rooms') {
+      return devices;
+    }
+    return devices.filter(device => device.room === selectedRoom);
+  }, [devices, selectedRoom]);
+
+  // Calculate room-based analytics
+  const roomAnalytics = useMemo(() => {
+    const roomStats: Record<string, {
+      ac: { latest: string; total: string; count: number };
+      lights: { latest: string; total: string; count: number };
+      fan: { latest: string; total: string; count: number };
+      refrigerator: { latest: string; total: string; count: number };
+      totalDevices: number;
+      onlineDevices: number;
+      activeDevices: number;
+    }> = {};
+
+    // Initialize stats for each room
+    deviceService.getAllRooms().forEach(room => {
+      roomStats[room] = {
+        ac: { latest: '0.000', total: '0.000 kWh', count: 0 },
+        lights: { latest: '0.000', total: '0.000 kWh', count: 0 },
+        fan: { latest: '0.000', total: '0.000 kWh', count: 0 },
+        refrigerator: { latest: '0.000', total: '0.000 kWh', count: 0 },
+        totalDevices: 0,
+        onlineDevices: 0,
+        activeDevices: 0
+      };
+    });
+
+    // Calculate stats per room
+    filteredDevices.forEach(device => {
+      const room = device.room || 'Default Room';
+      if (!roomStats[room]) {
+        roomStats[room] = {
+          ac: { latest: '0.000', total: '0.000 kWh', count: 0 },
+          lights: { latest: '0.000', total: '0.000 kWh', count: 0 },
+          fan: { latest: '0.000', total: '0.000 kWh', count: 0 },
+          refrigerator: { latest: '0.000', total: '0.000 kWh', count: 0 },
+          totalDevices: 0,
+          onlineDevices: 0,
+          activeDevices: 0
+        };
+      }
+
+      roomStats[room].totalDevices++;
+      if (device.status === 'online') roomStats[room].onlineDevices++;
+      if (device.state) roomStats[room].activeDevices++;
+
+      // Count devices by type in this room
+      if (device.type === 'ac') {
+        roomStats[room].ac.count++;
+      } else if (device.type === 'light') {
+        roomStats[room].lights.count++;
+      } else if (device.type === 'fan') {
+        roomStats[room].fan.count++;
+      } else if (device.type === 'refrigerator') {
+        roomStats[room].refrigerator.count++;
+      }
+    });
+
+    // Calculate power usage per room (distribute total power proportionally)
+    if (data?.energyData && data.energyData.length > 5) {
+      const latestData = data.energyData[data.energyData.length - 6];
+      const totalAC = Number(latestData.acPower) || 0;
+      const totalLights = Number(latestData.lightPower) || 0;
+      const totalFan = Number(latestData.fanPower) || 0;
+      const totalRefrigerator = Number(latestData.refrigeratorPower) || 0;
+
+      const totalACDevices = filteredDevices.filter(d => d.type === 'ac').length;
+      const totalLightDevices = filteredDevices.filter(d => d.type === 'light').length;
+      const totalFanDevices = filteredDevices.filter(d => d.type === 'fan').length;
+      const totalRefrigeratorDevices = filteredDevices.filter(d => d.type === 'refrigerator').length;
+
+      Object.keys(roomStats).forEach(room => {
+        const roomDevices = devices.filter(d => d.room === room);
+        const roomACDevices = roomDevices.filter(d => d.type === 'ac').length;
+        const roomLightDevices = roomDevices.filter(d => d.type === 'light').length;
+        const roomFanDevices = roomDevices.filter(d => d.type === 'fan').length;
+        const roomRefrigeratorDevices = roomDevices.filter(d => d.type === 'refrigerator').length;
+
+        // Distribute power proportionally
+        if (totalACDevices > 0) {
+          roomStats[room].ac.latest = toKW((totalAC / totalACDevices) * roomACDevices);
+        }
+        if (totalLightDevices > 0) {
+          roomStats[room].lights.latest = toKW((totalLights / totalLightDevices) * roomLightDevices);
+        }
+        if (totalFanDevices > 0) {
+          roomStats[room].fan.latest = toKW((totalFan / totalFanDevices) * roomFanDevices);
+        }
+        if (totalRefrigeratorDevices > 0) {
+          roomStats[room].refrigerator.latest = toKW((totalRefrigerator / totalRefrigeratorDevices) * roomRefrigeratorDevices);
+        }
+
+        // Calculate total usage (simplified - distribute total usage proportionally)
+        const totalEnergyData = data.energyData || [];
+        if (totalACDevices > 0 && roomACDevices > 0) {
+          const acTotal = totalKWhWithMultiplier(totalEnergyData, 'acPower', 0.5);
+          const acValue = parseFloat(acTotal.replace(' kWh', ''));
+          roomStats[room].ac.total = `${((acValue / totalACDevices) * roomACDevices).toFixed(3)} kWh`;
+        }
+        if (totalLightDevices > 0 && roomLightDevices > 0) {
+          const lightTotal = totalKWhWithMultiplier(totalEnergyData, 'lightPower', 1);
+          const lightValue = parseFloat(lightTotal.replace(' kWh', ''));
+          roomStats[room].lights.total = `${((lightValue / totalLightDevices) * roomLightDevices).toFixed(3)} kWh`;
+        }
+        if (totalFanDevices > 0 && roomFanDevices > 0) {
+          const fanTotal = totalKWhWithMultiplier(totalEnergyData, 'fanPower', 1);
+          const fanValue = parseFloat(fanTotal.replace(' kWh', ''));
+          roomStats[room].fan.total = `${((fanValue / totalFanDevices) * roomFanDevices).toFixed(3)} kWh`;
+        }
+        if (totalRefrigeratorDevices > 0 && roomRefrigeratorDevices > 0) {
+          const refTotal = totalKWhWithMultiplier(totalEnergyData, 'refrigeratorPower', 1);
+          const refValue = parseFloat(refTotal.replace(' kWh', ''));
+          roomStats[room].refrigerator.total = `${((refValue / totalRefrigeratorDevices) * roomRefrigeratorDevices).toFixed(3)} kWh`;
+        }
+      });
+    }
+
+    return roomStats;
+  }, [devices, filteredDevices, data, selectedRoom]);
+
   // Device summary table columns
   const deviceColumns = [
     { key: 'name', header: 'Device', sortable: true },
+    { key: 'room', header: 'Room', sortable: true },
     { key: 'latest', header: 'Latest Value (kW)', sortable: true },
     { key: 'total', header: 'Total Usage (kWh)', sortable: true },
   ];
 
-  // Prepare device summary data
-  const deviceData = [
-    {
-      name: 'AC',
-      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].acPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.5) : '0.000 kWh',
-    },
-    {
-      name: 'Lights',
-      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].lightPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'lightPower', 1) : '0.000 kWh',
-    },
-    {
-      name: 'Fan',
-      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].fanPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'fanPower', 1) : '0.000 kWh',
-    },
-    {
-      name: 'Refrigerator',
-      latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].refrigeratorPower)) : 'N/A',
-      total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 1) : '0.000 kWh',
-    },
-  ];
+  // Prepare device summary data for selected room
+  const deviceData = useMemo(() => {
+    if (selectedRoom === 'All Rooms') {
+      // Aggregate all rooms
+      const allRoomStats = Object.values(roomAnalytics);
+      return [
+        {
+          name: 'AC',
+          room: 'All Rooms',
+          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].acPower)) : 'N/A',
+          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.5) : '0.000 kWh',
+        },
+        {
+          name: 'Lights',
+          room: 'All Rooms',
+          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].lightPower)) : 'N/A',
+          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'lightPower', 1) : '0.000 kWh',
+        },
+        {
+          name: 'Fan',
+          room: 'All Rooms',
+          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].fanPower)) : 'N/A',
+          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'fanPower', 1) : '0.000 kWh',
+        },
+        {
+          name: 'Refrigerator',
+          room: 'All Rooms',
+          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].refrigeratorPower)) : 'N/A',
+          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 1) : '0.000 kWh',
+        },
+      ];
+    } else {
+      const stats = roomAnalytics[selectedRoom];
+      if (!stats) return [];
+      return [
+        {
+          name: 'AC',
+          room: selectedRoom,
+          latest: stats.ac.latest,
+          total: stats.ac.total,
+        },
+        {
+          name: 'Lights',
+          room: selectedRoom,
+          latest: stats.lights.latest,
+          total: stats.lights.total,
+        },
+        {
+          name: 'Fan',
+          room: selectedRoom,
+          latest: stats.fan.latest,
+          total: stats.fan.total,
+        },
+        {
+          name: 'Refrigerator',
+          room: selectedRoom,
+          latest: stats.refrigerator.latest,
+          total: stats.refrigerator.total,
+        },
+      ];
+    }
+  }, [selectedRoom, roomAnalytics, data]);
 
   // Debug: Log the latest data points to see what we're getting
   if (data?.energyData && data.energyData.length > 5) {
@@ -144,6 +324,8 @@ const Analytics = () => {
     }))
   });
 
+  const currentRoomStats = selectedRoom === 'All Rooms' ? null : roomAnalytics[selectedRoom];
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto">
@@ -152,29 +334,65 @@ const Analytics = () => {
           <p className="text-muted-foreground">Real-time summary and trends from your devices</p>
         </div>
 
+        {/* Room Selector */}
+        <div className="mb-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <Label htmlFor="room-select" className="text-sm font-medium">Select Room:</Label>
+                <Select value={selectedRoom} onValueChange={setSelectedRoom}>
+                  <SelectTrigger id="room-select" className="w-[200px]">
+                    <SelectValue placeholder="Select room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allRooms.map((room) => (
+                      <SelectItem key={room} value={room}>
+                        {room} {room !== 'All Rooms' && `(${deviceService.getRoomStats(room).totalDevices} devices)`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {currentRoomStats && (
+                  <div className="ml-auto text-sm text-muted-foreground">
+                    {currentRoomStats.totalDevices} devices | {currentRoomStats.onlineDevices} online | {currentRoomStats.activeDevices} active
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
-            title="Total AC Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'acPower', 0.5)}
+            title={selectedRoom === 'All Rooms' ? "Total AC Usage" : `AC Usage (${selectedRoom})`}
+            value={selectedRoom === 'All Rooms' 
+              ? totalKWhWithMultiplier(data?.energyData || [], 'acPower', 0.5)
+              : (currentRoomStats?.ac.total || '0.000 kWh')}
             change={0}
             icon={<Bolt className="h-6 w-6" />}
           />
           <StatCard
-            title="Total Lights Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'lightPower', 1)}
+            title={selectedRoom === 'All Rooms' ? "Total Lights Usage" : `Lights Usage (${selectedRoom})`}
+            value={selectedRoom === 'All Rooms'
+              ? totalKWhWithMultiplier(data?.energyData || [], 'lightPower', 1)
+              : (currentRoomStats?.lights.total || '0.000 kWh')}
             change={0}
             icon={<Zap className="h-6 w-6" />}
           />
           <StatCard
-            title="Total Fan Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'fanPower', 1)}
+            title={selectedRoom === 'All Rooms' ? "Total Fan Usage" : `Fan Usage (${selectedRoom})`}
+            value={selectedRoom === 'All Rooms'
+              ? totalKWhWithMultiplier(data?.energyData || [], 'fanPower', 1)
+              : (currentRoomStats?.fan.total || '0.000 kWh')}
             change={0}
             icon={<Gauge className="h-6 w-6" />}
           />
           <StatCard
-            title="Total Refrigerator Usage"
-            value={totalKWhWithMultiplier(data?.energyData || [], 'refrigeratorPower', 1)}
+            title={selectedRoom === 'All Rooms' ? "Total Refrigerator Usage" : `Refrigerator Usage (${selectedRoom})`}
+            value={selectedRoom === 'All Rooms'
+              ? totalKWhWithMultiplier(data?.energyData || [], 'refrigeratorPower', 1)
+              : (currentRoomStats?.refrigerator.total || '0.000 kWh')}
             change={0}
             icon={<Gauge className="h-6 w-6 text-cyan-500" />}
           />

@@ -18,8 +18,8 @@ export const useDevices = () => {
     };
   }, []);
 
-  const addDevice = async (name: string, type: string, togglePath?: string) => {
-    return await deviceService.addDevice(name, type, togglePath);
+  const addDevice = async (name: string, type: string, room: string, togglePath?: string) => {
+    return await deviceService.addDevice(name, type, room, togglePath);
   };
 
   const removeDevice = async (deviceId: string) => {
@@ -38,12 +38,32 @@ export const useDevices = () => {
     return deviceService.getDevicesByType(type);
   };
 
+  const updateDeviceName = async (deviceId: string, newName: string) => {
+    return await deviceService.updateDeviceName(deviceId, newName);
+  };
+
+  const updateDeviceRoom = async (deviceId: string, newRoom: string) => {
+    return await deviceService.updateDeviceRoom(deviceId, newRoom);
+  };
+
+  const updateDevice = async (deviceId: string, updates: { name?: string; room?: string }) => {
+    return await deviceService.updateDevice(deviceId, updates);
+  };
+
+  const renameRoom = async (oldRoomName: string, newRoomName: string) => {
+    return await deviceService.renameRoom(oldRoomName, newRoomName);
+  };
+
   return {
     devices,
     loading,
     addDevice,
     removeDevice,
     updateDeviceStatus,
+    updateDeviceName,
+    updateDeviceRoom,
+    updateDevice,
+    renameRoom,
     getDevice,
     getDevicesByType,
   };

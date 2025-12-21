@@ -88,7 +88,8 @@ export class DeviceSyncTester {
       // Test device creation
       const testDevice = await deviceService.addDevice(
         this.testDeviceName,
-        this.testDeviceType
+        this.testDeviceType,
+        'Test Room' // Add room parameter for testing
       );
 
       if (!testDevice) {

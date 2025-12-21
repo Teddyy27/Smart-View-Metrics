@@ -24,6 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import {
   User,
   Smartphone,
   Bell,
@@ -34,6 +40,7 @@ import {
   Save,
   Check,
   ChevronRight,
+  ChevronsUpDown,
   Shield
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
@@ -84,8 +91,11 @@ const SettingsPage = () => {
   const [newDevice, setNewDevice] = useState({
     name: '',
     type: '',
+    room: 'Default Room',
     togglePath: '',
   });
+  const [roomType, setRoomType] = useState<string>('Living Room');
+  const [roomName, setRoomName] = useState<string>('');
 
   // Update profile form when user changes
   useEffect(() => {
@@ -356,21 +366,49 @@ const SettingsPage = () => {
     }
   };
 
+  // Room types for selection
+  const ROOM_TYPES = [
+    { value: 'Living Room', label: 'Living Room' },
+    { value: 'Bedroom', label: 'Bedroom' },
+    { value: 'Kitchen', label: 'Kitchen' },
+    { value: 'Bathroom', label: 'Bathroom' },
+    { value: 'Office', label: 'Office' },
+    { value: 'Garage', label: 'Garage' },
+    { value: 'Outdoor', label: 'Outdoor' },
+    { value: 'Dining Room', label: 'Dining Room' },
+    { value: 'Hallway', label: 'Hallway' },
+    { value: 'Basement', label: 'Basement' },
+    { value: 'Attic', label: 'Attic' },
+    { value: 'Other', label: 'Other' },
+  ];
+
+  // Generate final room name from type + name
+  const getFinalRoomName = () => {
+    if (!roomType) return 'Default Room';
+    if (roomName.trim()) {
+      return `${roomType} ${roomName.trim()}`;
+    }
+    return roomType;
+  };
+
   const handleAddDevice = async () => {
-    if (!newDevice.name.trim() || !newDevice.type) {
+    const finalRoomName = getFinalRoomName();
+    if (!newDevice.name.trim() || !newDevice.type || !roomType) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all fields",
+        description: "Please fill in all required fields",
         variant: "destructive"
       });
       return;
     }
-    const device = await addDevice(newDevice.name, newDevice.type, newDevice.togglePath);
-    setNewDevice({ name: '', type: '', togglePath: '' });
+    const device = await addDevice(newDevice.name, newDevice.type, finalRoomName, newDevice.togglePath);
+    setNewDevice({ name: '', type: '', room: finalRoomName, togglePath: '' });
+    setRoomType('Living Room');
+    setRoomName('');
     setIsAddDeviceOpen(false);
     toast({
       title: "Device Added",
-      description: `${device.name} has been added successfully.`
+      description: `${device.name} has been added to ${finalRoomName}.`
     });
   };
 
@@ -1033,6 +1071,39 @@ const SettingsPage = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="device-room">Room</Label>
+                        <Select value={roomType} onValueChange={(value) => {
+                          setRoomType(value);
+                          setRoomName(''); // Reset room name when type changes
+                        }}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select room type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROOM_TYPES.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                {type.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="room-name">Room Name (Optional)</Label>
+                        <Input
+                          id="room-name"
+                          value={roomName}
+                          onChange={(e) => setRoomName(e.target.value)}
+                          placeholder={`e.g., "1", "Master", "Guest"`}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {roomName.trim() 
+                            ? `Room will be: "${roomType} ${roomName.trim()}"`
+                            : `Room will be: "${roomType}" (leave empty for default)`
+                          }
+                        </p>
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="device-name">Device Name</Label>
                         <Input

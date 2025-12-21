@@ -5,7 +5,7 @@ import BarChart from '@/components/dashboard/BarChart';
 import LineChart from '@/components/dashboard/LineChart';
 import PieChart from '@/components/dashboard/PieChart';
 import DeviceStatus from '@/components/dashboard/DeviceStatus';
-import { Bolt, TrendingUp, Zap, Plus } from 'lucide-react';
+import { Bolt, TrendingUp, Zap, Plus, Home, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -107,6 +107,18 @@ const Dashboard = () => {
   const fanPower = getLatestDevicePower('fanPower');
   const lightPower = getLatestDevicePower('lightPower');
   const refrigeratorPower = getLatestDevicePower('refrigeratorPower');
+
+  // Get all rooms and their stats
+  const allRooms = deviceService.getAllRooms();
+  const roomStats = allRooms.map(room => {
+    const stats = deviceService.getRoomStats(room);
+    const roomDevices = deviceService.getDevicesByRoom(room);
+    return {
+      name: room,
+      ...stats,
+      devices: roomDevices
+    };
+  });
 
   console.log('Dashboard data received:', {
     stats,
@@ -273,7 +285,7 @@ const Dashboard = () => {
         </div>
         
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard 
             title="Energy Usage"
             value={energyUsage.value}
@@ -291,6 +303,12 @@ const Dashboard = () => {
             value={automationStatus.value}
             change={automationStatus.change}
             icon={<Zap className="h-6 w-6" />}
+          />
+          <StatCard 
+            title="Total Rooms"
+            value={allRooms.length.toString()}
+            change={0}
+            icon={<Home className="h-6 w-6" />}
           />
         </div>
         
@@ -344,12 +362,114 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Rooms Overview Section */}
+        {allRooms.length > 0 && (
+          <div className="mb-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Home className="w-5 h-5" />
+                    <CardTitle>Rooms Overview</CardTitle>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => window.location.href = '/automation'}
+                  >
+                    Manage Rooms
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {roomStats.map(room => (
+                    <div 
+                      key={room.name}
+                      className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => {
+                        // Navigate to automation page with room filter
+                        window.location.href = '/automation';
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="font-semibold text-lg">{room.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {room.totalDevices} device{room.totalDevices !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <Home className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Online</span>
+                          <span className="font-medium text-green-600">{room.onlineDevices}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Active</span>
+                          <span className="font-medium text-blue-600">{room.activeDevices}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Offline</span>
+                          <span className="font-medium text-gray-600">
+                            {room.totalDevices - room.onlineDevices}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Quick device type summary */}
+                      {room.devices.length > 0 && (
+                        <div className="mt-3 pt-3 border-t">
+                          <div className="flex flex-wrap gap-1">
+                            {room.devices.slice(0, 3).map(device => (
+                              <Badge 
+                                key={device.id} 
+                                variant="outline" 
+                                className="text-xs"
+                              >
+                                {device.type}
+                              </Badge>
+                            ))}
+                            {room.devices.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{room.devices.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Quick action button */}
+                      <div className="mt-3 pt-3 border-t">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = '/automation';
+                          }}
+                        >
+                          View Details
+                          <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Device Management Section */}
         <div className="mb-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Device Management</CardTitle>
+                <CardTitle>All Devices</CardTitle>
                 <Button onClick={() => window.location.href = '/automation'}>
                   <Plus className="w-4 h-4 mr-2" />
                   Manage Devices
@@ -375,7 +495,11 @@ const Dashboard = () => {
                     <div key={device.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex-1">
                         <h3 className="font-medium">{device.name}</h3>
-                        <p className="text-sm text-muted-foreground">{device.type}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-sm text-muted-foreground">{device.type}</p>
+                          <span className="text-xs text-muted-foreground">•</span>
+                          <p className="text-xs text-muted-foreground">{device.room || 'Default Room'}</p>
+                        </div>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant={device.status === 'online' ? 'default' : 'secondary'}>
                             {device.status}
