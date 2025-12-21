@@ -10,17 +10,51 @@ import { Bolt, Zap, Gauge, Home } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '@/services/firebase';
 
 const Analytics = () => {
   const { data, isLoading: loading } = useRealtimeDashboardData();
   const { trackPageAccess } = useUserData();
   const { devices } = useDevices();
   const [selectedRoom, setSelectedRoom] = useState<string>('All Rooms');
+  const [devicePowerLogs, setDevicePowerLogs] = useState<Record<string, Record<string, number>>>({});
 
   // Track page access when component mounts
   useEffect(() => {
     trackPageAccess('Analytics');
   }, [trackPageAccess]);
+
+  // Fetch power logs for all devices in real-time
+  useEffect(() => {
+    const listeners: Array<() => void> = [];
+    
+    devices.forEach(device => {
+      const powerLogsRef = ref(db, `devices/${device.id}/power_logs`);
+      const unsubscribe = onValue(powerLogsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const logs = snapshot.val() || {};
+          setDevicePowerLogs(prev => ({
+            ...prev,
+            [device.id]: logs
+          }));
+        } else {
+          setDevicePowerLogs(prev => {
+            const updated = { ...prev };
+            delete updated[device.id];
+            return updated;
+          });
+        }
+      }, (error) => {
+        console.error(`Error fetching power logs for device ${device.id}:`, error);
+      });
+      listeners.push(() => off(powerLogsRef, 'value', unsubscribe));
+    });
+
+    return () => {
+      listeners.forEach(unsubscribe => unsubscribe());
+    };
+  }, [devices]);
 
   // Helper to format power in kW (convert watts to kilowatts) - 3 decimal points
   const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
@@ -169,73 +203,100 @@ const Analytics = () => {
   // Device summary table columns
   const deviceColumns = [
     { key: 'name', header: 'Device', sortable: true },
+    { key: 'type', header: 'Type', sortable: true, render: (val: string) => val.charAt(0).toUpperCase() + val.slice(1) },
     { key: 'room', header: 'Room', sortable: true },
-    { key: 'latest', header: 'Latest Value (kW)', sortable: true },
+    { key: 'latest', header: 'Latest Power (kW)', sortable: true },
     { key: 'total', header: 'Total Usage (kWh)', sortable: true },
+    { key: 'status', header: 'Status', sortable: true, render: (val: string) => val === 'online' ? 'Online' : 'Offline' },
+    { key: 'state', header: 'State', sortable: true, render: (val: boolean) => val ? 'ON' : 'OFF' },
   ];
 
-  // Prepare device summary data for selected room
-  const deviceData = useMemo(() => {
-    if (selectedRoom === 'All Rooms') {
-      // Aggregate all rooms
-      const allRoomStats = Object.values(roomAnalytics);
-      return [
-        {
-          name: 'AC',
-          room: 'All Rooms',
-          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].acPower)) : 'N/A',
-          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'acPower', 0.5) : '0.000 kWh',
-        },
-        {
-          name: 'Lights',
-          room: 'All Rooms',
-          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].lightPower)) : 'N/A',
-          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'lightPower', 1) : '0.000 kWh',
-        },
-        {
-          name: 'Fan',
-          room: 'All Rooms',
-          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].fanPower)) : 'N/A',
-          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'fanPower', 1) : '0.000 kWh',
-        },
-        {
-          name: 'Refrigerator',
-          room: 'All Rooms',
-          latest: data?.energyData && data.energyData.length > 5 ? toKW(Number(data.energyData[data.energyData.length - 6].refrigeratorPower)) : 'N/A',
-          total: data?.energyData ? totalKWhWithMultiplier(data.energyData, 'refrigeratorPower', 1) : '0.000 kWh',
-        },
-      ];
-    } else {
-      const stats = roomAnalytics[selectedRoom];
-      if (!stats) return [];
-      return [
-        {
-          name: 'AC',
-          room: selectedRoom,
-          latest: stats.ac.latest,
-          total: stats.ac.total,
-        },
-        {
-          name: 'Lights',
-          room: selectedRoom,
-          latest: stats.lights.latest,
-          total: stats.lights.total,
-        },
-        {
-          name: 'Fan',
-          room: selectedRoom,
-          latest: stats.fan.latest,
-          total: stats.fan.total,
-        },
-        {
-          name: 'Refrigerator',
-          room: selectedRoom,
-          latest: stats.refrigerator.latest,
-          total: stats.refrigerator.total,
-        },
-      ];
+  // Calculate device power consumption from power_logs
+  const calculateDevicePower = (deviceId: string) => {
+    const logs = devicePowerLogs[deviceId] || {};
+    const logEntries = Object.entries(logs);
+    
+    if (logEntries.length === 0) {
+      return { latest: 0, total: 0 };
     }
-  }, [selectedRoom, roomAnalytics, data]);
+
+    // Get latest power value (most recent timestamp)
+    const sortedEntries = logEntries.sort(([a], [b]) => b.localeCompare(a));
+    const latestPower = sortedEntries[0] ? Number(sortedEntries[0][1]) || 0 : 0;
+
+    // Calculate total power consumption (sum of all logs, assuming each log is power in watts)
+    // Convert to kWh: sum(watts) / 1000 * (number of minutes / 60)
+    const totalWatts = logEntries.reduce((sum, [, power]) => sum + (Number(power) || 0), 0);
+    // Assuming each log entry represents 1 minute of consumption
+    const totalKWh = (totalWatts / 1000) * (logEntries.length / 60);
+
+    return { latest: latestPower, total: totalKWh };
+  };
+
+  // Aggregate minute-by-minute power data from devices in selected room
+  const minuteByMinuteData = useMemo(() => {
+    const roomDevices = selectedRoom === 'All Rooms' 
+      ? devices 
+      : devices.filter(device => device.room === selectedRoom);
+
+    if (roomDevices.length === 0) {
+      return [];
+    }
+
+    // Collect all timestamps from all devices
+    const allTimestamps = new Set<string>();
+    roomDevices.forEach(device => {
+      const logs = devicePowerLogs[device.id] || {};
+      Object.keys(logs).forEach(timestamp => allTimestamps.add(timestamp));
+    });
+
+    // Sort timestamps (most recent first, then reverse for display)
+    const sortedTimestamps = Array.from(allTimestamps).sort((a, b) => b.localeCompare(a));
+
+    // Create minute-by-minute data entries
+    return sortedTimestamps.map(timestamp => {
+      let totalPower = 0;
+      const devicePowers: Record<string, number> = {};
+
+      // Aggregate power from all devices for this timestamp
+      roomDevices.forEach(device => {
+        const logs = devicePowerLogs[device.id] || {};
+        const power = Number(logs[timestamp]) || 0;
+        if (power > 0) {
+          totalPower += power;
+          devicePowers[device.name] = power;
+        }
+      });
+
+      return {
+        name: timestamp,
+        timestamp: timestamp,
+        totalPower: totalPower / 1000, // Convert to kW
+        devicePowers: devicePowers,
+        deviceCount: Object.keys(devicePowers).length
+      };
+    }).slice(0, 30); // Show last 30 entries
+  }, [selectedRoom, devices, devicePowerLogs]);
+
+  // Prepare device summary data for selected room - showing actual devices
+  const deviceData = useMemo(() => {
+    const roomDevices = selectedRoom === 'All Rooms' 
+      ? devices 
+      : devices.filter(device => device.room === selectedRoom);
+
+    return roomDevices.map(device => {
+      const powerData = calculateDevicePower(device.id);
+      return {
+        name: device.name,
+        room: device.room || 'Default Room',
+        type: device.type,
+        latest: powerData.latest > 0 ? toKW(powerData.latest) : '0.000',
+        total: powerData.total > 0 ? `${powerData.total.toFixed(3)} kWh` : '0.000 kWh',
+        status: device.status,
+        state: device.state
+      };
+    });
+  }, [selectedRoom, devices, devicePowerLogs]);
 
   // Debug: Log the latest data points to see what we're getting
   if (data?.energyData && data.energyData.length > 5) {
@@ -362,39 +423,34 @@ const Analytics = () => {
           </Card>
         </div>
 
-        {/* Stat Cards */}
+        {/* Stat Cards - Show aggregated stats for selected room */}
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
-            title={selectedRoom === 'All Rooms' ? "Total AC Usage" : `AC Usage (${selectedRoom})`}
-            value={selectedRoom === 'All Rooms' 
-              ? totalKWhWithMultiplier(data?.energyData || [], 'acPower', 0.5)
-              : (currentRoomStats?.ac.total || '0.000 kWh')}
+            title={`Total Devices (${selectedRoom})`}
+            value={deviceData.length.toString()}
             change={0}
-            icon={<Bolt className="h-6 w-6" />}
+            icon={<Home className="h-6 w-6" />}
           />
           <StatCard
-            title={selectedRoom === 'All Rooms' ? "Total Lights Usage" : `Lights Usage (${selectedRoom})`}
-            value={selectedRoom === 'All Rooms'
-              ? totalKWhWithMultiplier(data?.energyData || [], 'lightPower', 1)
-              : (currentRoomStats?.lights.total || '0.000 kWh')}
+            title={`Online Devices (${selectedRoom})`}
+            value={deviceData.filter(d => d.status === 'online').length.toString()}
             change={0}
             icon={<Zap className="h-6 w-6" />}
           />
           <StatCard
-            title={selectedRoom === 'All Rooms' ? "Total Fan Usage" : `Fan Usage (${selectedRoom})`}
-            value={selectedRoom === 'All Rooms'
-              ? totalKWhWithMultiplier(data?.energyData || [], 'fanPower', 1)
-              : (currentRoomStats?.fan.total || '0.000 kWh')}
+            title={`Active Devices (${selectedRoom})`}
+            value={deviceData.filter(d => d.state).length.toString()}
             change={0}
-            icon={<Gauge className="h-6 w-6" />}
+            icon={<Bolt className="h-6 w-6" />}
           />
           <StatCard
-            title={selectedRoom === 'All Rooms' ? "Total Refrigerator Usage" : `Refrigerator Usage (${selectedRoom})`}
-            value={selectedRoom === 'All Rooms'
-              ? totalKWhWithMultiplier(data?.energyData || [], 'refrigeratorPower', 1)
-              : (currentRoomStats?.refrigerator.total || '0.000 kWh')}
+            title={`Total Power Usage (${selectedRoom})`}
+            value={deviceData.reduce((sum, d) => {
+              const totalStr = d.total.replace(' kWh', '');
+              return sum + (parseFloat(totalStr) || 0);
+            }, 0).toFixed(3) + ' kWh'}
             change={0}
-            icon={<Gauge className="h-6 w-6 text-cyan-500" />}
+            icon={<Gauge className="h-6 w-6" />}
           />
         </div>
 
@@ -410,16 +466,28 @@ const Analytics = () => {
         {/* Minute-by-Minute Device Data Table */}
         <div className="mb-6">
           <DataTable
-            title="Minute-by-Minute Device Data (5-min delay)"
+            title={`Minute-by-Minute Device Data (${selectedRoom})`}
             columns={[
-              { key: 'date', header: 'Date', sortable: true, render: (_: any, row: any) => parseDateTime(row.name).date },
-              { key: 'time', header: 'Time', sortable: true, render: (_: any, row: any) => parseDateTime(row.name).time },
-              { key: 'acPower', header: 'AC Power (kW)', sortable: true, render: (val: number) => toKW(val) },
-              { key: 'fanPower', header: 'Fan Power (kW)', sortable: true, render: (val: number) => toKW(val) },
-              { key: 'lightPower', header: 'Light Power (kW)', sortable: true, render: (val: number) => toKW(val) },
-              { key: 'refrigeratorPower', header: 'Refrigerator Power (kW)', sortable: true, render: (val: number) => toKW(val) },
+              { key: 'date', header: 'Date', sortable: true, render: (_: any, row: any) => {
+                const timestamp = row.timestamp || row.name;
+                return parseDateTime(timestamp).date;
+              }},
+              { key: 'time', header: 'Time', sortable: true, render: (_: any, row: any) => {
+                const timestamp = row.timestamp || row.name;
+                return parseDateTime(timestamp).time;
+              }},
+              { key: 'totalPower', header: 'Total Power (kW)', sortable: true, render: (val: number) => {
+                return typeof val === 'number' ? val.toFixed(3) : '0.000';
+              }},
+              { key: 'devicePowers', header: 'Device Breakdown', sortable: false, render: (val: Record<string, number>, row: any) => {
+                if (!val || Object.keys(val).length === 0) return 'No data';
+                return Object.entries(val).map(([deviceName, power]) => 
+                  `${deviceName}: ${(Number(power) / 1000).toFixed(3)} kW`
+                ).join(', ');
+              }},
+              { key: 'deviceCount', header: 'Devices', sortable: true, render: (val: number) => val.toString() },
             ]}
-            data={data?.energyData?.slice(-30, -5).reverse() ?? []}
+            data={minuteByMinuteData}
           />
         </div>
       </div>

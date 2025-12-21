@@ -4,7 +4,6 @@ import StatCard from '@/components/dashboard/StatCard';
 import BarChart from '@/components/dashboard/BarChart';
 import LineChart from '@/components/dashboard/LineChart';
 import PieChart from '@/components/dashboard/PieChart';
-import DeviceStatus from '@/components/dashboard/DeviceStatus';
 import { Bolt, TrendingUp, Zap, Plus, Home, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -520,51 +519,6 @@ const Dashboard = () => {
               )}
             </CardContent>
           </Card>
-        </div>
-        
-        {/* Device Status Overview */}
-        <div className="mb-6">
-          <div className="bg-card rounded-lg border border-border p-6">
-            <h3 className="text-lg font-semibold mb-4 text-card-foreground">Device Status Overview (5-min delay)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* AC Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">AC</h4>
-                  <div className={`w-3 h-3 rounded-full ${acPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                </div>
-                <p className="text-2xl font-bold text-card-foreground">{acPower.toFixed(3)} kW</p>
-                <p className="text-sm text-muted-foreground">{acPower > 0 ? 'Running' : 'Idle'}</p>
-              </div>
-              {/* Fan Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Fan</h4>
-                  <div className={`w-3 h-3 rounded-full ${fanPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                </div>
-                <p className="text-2xl font-bold text-card-foreground">{fanPower.toFixed(3)} kW</p>
-                <p className="text-sm text-muted-foreground">{fanPower > 0 ? 'Running' : 'Idle'}</p>
-              </div>
-              {/* Lights Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Lights</h4>
-                  <div className={`w-3 h-3 rounded-full ${lightPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                </div>
-                <p className="text-2xl font-bold text-card-foreground">{lightPower.toFixed(3)} kW</p>
-                <p className="text-sm text-muted-foreground">{lightPower > 0 ? 'On' : 'Off'}</p>
-              </div>
-              {/* Refrigerator Status */}
-              <div className="bg-card rounded-lg p-4 border border-border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-card-foreground">Refrigerator</h4>
-                  <div className={`w-3 h-3 rounded-full ${refrigeratorPower > 0 ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                </div>
-                <p className="text-2xl font-bold text-card-foreground">{refrigeratorPower.toFixed(3)} kW</p>
-                <p className="text-sm text-muted-foreground">{refrigeratorPower > 0 ? 'Running' : 'Idle'}</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </Layout>
