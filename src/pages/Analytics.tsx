@@ -228,7 +228,7 @@ const Analytics = () => {
     // Convert to kWh: sum(watts) / 1000 * (number of minutes / 60)
     const totalWatts = logEntries.reduce((sum, [, power]) => sum + (Number(power) || 0), 0);
     // Assuming each log entry represents 1 minute of consumption
-    const totalKWh = (totalWatts / 1000) * (logEntries.length / 60);
+    const totalKWh = (totalWatts / 60000) ;
 
     return { latest: latestPower, total: totalKWh };
   };

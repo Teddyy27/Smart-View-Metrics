@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import StatCard from '@/components/dashboard/StatCard';
 import BarChart from '@/components/dashboard/BarChart';
@@ -15,6 +15,8 @@ import { useToast } from '@/components/ui/use-toast';
 import useSWR from 'swr';
 import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime';
 import { useUserData } from '@/hooks/useUserData';
+import { ref, onValue, off } from 'firebase/database';
+import { db } from '@/services/firebase';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -23,6 +25,7 @@ const Dashboard = () => {
   const { trackPageAccess } = useUserData();
   const { devices, loading: devicesLoading } = useDevices();
   const [activeRange, setActiveRange] = useState('1h');
+  const [devicePowerLogs, setDevicePowerLogs] = useState<Record<string, Record<string, number>>>({});
   const { toast } = useToast();
 
   // Debug logging
@@ -44,6 +47,37 @@ const Dashboard = () => {
     trackPageAccess('Dashboard');
   }, [trackPageAccess]);
 
+  // Fetch power logs for all devices in real-time
+  useEffect(() => {
+    const listeners: Array<() => void> = [];
+    
+    devices.forEach(device => {
+      const powerLogsRef = ref(db, `devices/${device.id}/power_logs`);
+      const unsubscribe = onValue(powerLogsRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const logs = snapshot.val() || {};
+          setDevicePowerLogs(prev => ({
+            ...prev,
+            [device.id]: logs
+          }));
+        } else {
+          setDevicePowerLogs(prev => {
+            const updated = { ...prev };
+            delete updated[device.id];
+            return updated;
+          });
+        }
+      }, (error) => {
+        console.error(`Error fetching power logs for device ${device.id}:`, error);
+      });
+      listeners.push(() => off(powerLogsRef, 'value', unsubscribe));
+    });
+
+    return () => {
+      listeners.forEach(unsubscribe => unsubscribe());
+    };
+  }, [devices]);
+
   // Use recent energy data for charts (last 24 hours) and full data for totals
   const energyData = data?.recentEnergyData || data?.energyData || [];
   const fullEnergyData = data?.energyData || [];
@@ -59,7 +93,7 @@ const Dashboard = () => {
 
   // Helper to format total usage with multipliers and kWh unit (same as Analytics)
   const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
-    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
+    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60/1000) : 0;
     return `${(baseValue * multiplier).toFixed(3)} kWh`;
   };
 
@@ -69,143 +103,97 @@ const Dashboard = () => {
     return baseValue * multiplier;
   };
   
-  // Calculate peak usage (maximum power at any moment) with proper conversion - 5-minute delayed
-  const getPeakPower = () => {
-    if (!delayedEnergyData || delayedEnergyData.length === 0) return 0;
+  // Calculate device power consumption from power_logs
+  const calculateDevicePower = (deviceId: string) => {
+    const logs = devicePowerLogs[deviceId] || {};
+    const logEntries = Object.entries(logs);
     
-    let maxTotalPower = 0;
-    delayedEnergyData.forEach(row => {
-      const acPower = (Number(row.acPower || 0) / 1000); // Convert to kW
-      const lightingPower = (Number(row.lightPower || 0) / 1000); // Convert to kW
-      const fanPower = (Number(row.fanPower || 0) / 1000); // Convert to kW
-      const refrigeratorPower = (Number(row.refrigeratorPower || 0) / 1000); // Convert to kW
-      
-      const totalPower = acPower + lightingPower + fanPower + refrigeratorPower;
-      maxTotalPower = Math.max(maxTotalPower, totalPower);
-    });
-    
-    return maxTotalPower;
+    if (logEntries.length === 0) {
+      return { latest: 0, total: 0 };
+    }
+
+    // Get latest power value (most recent timestamp)
+    const sortedEntries = logEntries.sort(([a], [b]) => b.localeCompare(a));
+    const latestPower = sortedEntries[0] ? Number(sortedEntries[0][1]) || 0 : 0;
+
+    // Calculate total power consumption
+    // Values are in kW per minute, so sum all kW-min values and divide by 60 to get kWh
+    const totalKWhMinutes = logEntries.reduce((sum, [, power]) => sum + (Number(power) || 0), 0);
+    const totalKWh = totalKWhMinutes / 60000;
+
+    return { latest: latestPower, total: totalKWh };
   };
-  
-  const peakPower = getPeakPower();
+
+  // Get all rooms and their stats with power consumption
+  const allRooms = deviceService.getAllRooms();
+  const roomStats = useMemo(() => {
+    return allRooms.map(room => {
+      const stats = deviceService.getRoomStats(room);
+      const roomDevices = deviceService.getDevicesByRoom(room);
+      
+      // Calculate total power consumption for this room
+      let totalRoomPower = 0;
+      let latestRoomPower = 0;
+      roomDevices.forEach(device => {
+        const powerData = calculateDevicePower(device.id);
+        totalRoomPower += powerData.total;
+        latestRoomPower += powerData.latest;
+      });
+
+      return {
+        name: room,
+        ...stats,
+        devices: roomDevices,
+        totalPower: totalRoomPower, // in kWh
+        latestPower: latestRoomPower // in kW
+      };
+    });
+  }, [allRooms, devices, devicePowerLogs]);
+
+  // Calculate total statistics across all rooms
+  const totalStats = useMemo(() => {
+    const totalDevices = devices.length;
+    const onlineDevices = devices.filter(d => d.status === 'online').length;
+    const activeDevices = devices.filter(d => d.state).length;
+    const totalPower = roomStats.reduce((sum, room) => sum + room.totalPower, 0);
+    const latestPower = roomStats.reduce((sum, room) => sum + room.latestPower, 0);
+
+    return {
+      totalDevices,
+      onlineDevices,
+      activeDevices,
+      totalPower,
+      latestPower
+    };
+  }, [devices, roomStats]);
+
+  // Calculate peak usage from room power data
+  const peakPower = useMemo(() => {
+    if (roomStats.length === 0) return 0;
+    return Math.max(...roomStats.map(room => room.latestPower)) / 1000;
+  }, [roomStats]);
   
   const efficiency = { 
     value: `${peakPower.toFixed(3)} kW`, 
     change: 0 
   };
 
-  // Get latest device power values safely (convert watts to kilowatts) - 5-minute delay
-  const getLatestDevicePower = (deviceKey: string) => {
-    if (!energyData || energyData.length <= 5) return 0;
-    // Use data from 5 minutes ago instead of most recent
-    const delayedData = energyData[energyData.length - 6];
-    return Number(delayedData[deviceKey] || 0) / 1000; // Convert watts to kilowatts
-  };
-
-  const acPower = getLatestDevicePower('acPower');
-  const fanPower = getLatestDevicePower('fanPower');
-  const lightPower = getLatestDevicePower('lightPower');
-  const refrigeratorPower = getLatestDevicePower('refrigeratorPower');
-
-  // Get all rooms and their stats
-  const allRooms = deviceService.getAllRooms();
-  const roomStats = allRooms.map(room => {
-    const stats = deviceService.getRoomStats(room);
-    const roomDevices = deviceService.getDevicesByRoom(room);
-    return {
-      name: room,
-      ...stats,
-      devices: roomDevices
-    };
-  });
-
   console.log('Dashboard data received:', {
     stats,
     energyDataLength: energyData.length,
     delayedEnergyDataLength: delayedEnergyData.length,
     usageDataLength: usageData.length,
-    devicePowers: { acPower, fanPower, lightPower, refrigeratorPower },
-    managedDevices: devices.length
+    managedDevices: devices.length,
+    totalRooms: allRooms.length
   });
 
-  // Debug: Log the 5-minute delayed data point
-  if (energyData && energyData.length > 5) {
-    const delayedData = energyData[energyData.length - 6]; // 5 minutes ago
-    console.log('Dashboard - 5-minute delayed data point:', {
-      timestamp: delayedData.name,
-      acPower: delayedData.acPower,
-      fanPower: delayedData.fanPower,
-      lightPower: delayedData.lightPower,
-      refrigeratorPower: delayedData.refrigeratorPower
-    });
-  }
-
-  // Simple chart data function - 5-minute delayed
-  const getChartData = (activeRange: string) => {
-    if (!energyData || energyData.length <= 5) return [];
-    
-    // Use data excluding the most recent 5 minutes
-    const delayedEnergyData = energyData.slice(0, -5);
-    
-    if (activeRange === '1h') {
-      // For 1-hour view, create 10-minute intervals
-      const now = new Date();
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      
-      // Create 7 data points with 10-minute intervals
-      const intervals = [];
-      for (let i = 0; i < 7; i++) {
-        const time = new Date(oneHourAgo.getTime() + i * 10 * 60 * 1000);
-        const timeString = time.toISOString().split('T')[0] + '_' + 
-                          time.getHours().toString().padStart(2, '0') + '-' + 
-                          time.getMinutes().toString().padStart(2, '0');
-        
-        // Find the closest data point or use zero values
-        const closestData = delayedEnergyData.find(data => data.name === timeString) || {
-          name: timeString,
-          acPower: 0,
-          fanPower: 0,
-          lightPower: 0,
-          refrigeratorPower: 0,
-          totalPower: 0
-        };
-        
-        intervals.push(closestData);
-      }
-      return intervals;
-      
-    } else if (activeRange === '24h') {
-      // For 24-hour view, create 4-hour intervals
-      const now = new Date();
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      
-      // Create 7 data points with 4-hour intervals
-      const intervals = [];
-      for (let i = 0; i < 7; i++) {
-        const time = new Date(oneDayAgo.getTime() + i * 4 * 60 * 60 * 1000);
-        const timeString = time.toISOString().split('T')[0] + '_' + 
-                          time.getHours().toString().padStart(2, '0') + '-' + 
-                          time.getMinutes().toString().padStart(2, '0');
-        
-        // Find the closest data point or use zero values
-        const closestData = delayedEnergyData.find(data => data.name === timeString) || {
-          name: timeString,
-          acPower: 0,
-          fanPower: 0,
-          lightPower: 0,
-          refrigeratorPower: 0,
-          totalPower: 0
-        };
-        
-        intervals.push(closestData);
-      }
-      return intervals;
-      
-    } else {
-      // Default: return last 12 data points (excluding most recent 5 minutes)
-      return delayedEnergyData.slice(-12);
-    }
-  };
+  // Debug: Log room statistics
+  console.log('Dashboard - Room Statistics:', roomStats.map(room => ({
+    name: room.name,
+    totalPower: room.totalPower,
+    latestPower: room.latestPower,
+    devices: room.devices.length
+  })));
 
   // Handle device toggle
   const handleDeviceToggle = async (deviceId: string, newState: boolean) => {
@@ -283,24 +271,24 @@ const Dashboard = () => {
           </div>
         </div>
         
-        {/* Stats Cards */}
+        {/* Stats Cards - Room-based */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard 
-            title="Energy Usage"
-            value={energyUsage.value}
-            change={energyUsage.change}
+            title="Total Power Usage"
+            value={`${totalStats.totalPower.toFixed(3)} kWh`}
+            change={0}
             icon={<Bolt className="h-6 w-6" />}
           />
           <StatCard 
             title="Peak Usage"
             value={efficiency.value}
-            change={efficiency.change}
+            change={0}
             icon={<TrendingUp className="h-6 w-6" />}
           />
           <StatCard 
-            title="Automation Status"
-            value={automationStatus.value}
-            change={automationStatus.change}
+            title="Active Devices"
+            value={totalStats.activeDevices.toString()}
+            change={0}
             icon={<Zap className="h-6 w-6" />}
           />
           <StatCard 
@@ -311,49 +299,41 @@ const Dashboard = () => {
           />
         </div>
         
-        {/* Charts */}
+        {/* Charts - Room-based */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            <LineChart 
-              title="Device Power Consumption (5-min delay)"
-              data={delayedEnergyData}
-              lines={[
-                { key: 'acPower', color: '#3b82f6', name: 'AC' },
-                { key: 'fanPower', color: '#10b981', name: 'Fan' },
-                { key: 'lightPower', color: '#8b5cf6', name: 'Light' },
-                { key: 'refrigeratorPower', color: '#06b6d4', name: 'Refrigerator' },
-                { key: 'totalPower', color: '#f59e0b', name: 'Total Power' },
-              ]}
-              getChartData={getChartData}
-            />
-
-          </div>
-          <div>
             <BarChart
-              title="Device Usage (kWh) - 5-min delay"
-              data={[
-                {
-                  name: 'AC',
-                  usage: getTotalKWhNumeric(delayedEnergyData, 'acPower', 1)
-                },
-                {
-                  name: 'Lights',
-                  usage: getTotalKWhNumeric(delayedEnergyData, 'lightPower', 1)
-                },
-                {
-                  name: 'Fan',
-                  usage: getTotalKWhNumeric(delayedEnergyData, 'fanPower', 1)
-                },
-                {
-                  name: 'Refrigerator',
-                  usage: getTotalKWhNumeric(delayedEnergyData, 'refrigeratorPower', 1)
-                }
-              ]}
+              title="Room Power Consumption Comparison"
+              data={roomStats
+                .sort((a, b) => b.totalPower - a.totalPower)
+                .map(room => ({
+                  name: room.name,
+                  usage: room.totalPower
+                }))}
               bars={[
                 {
                   key: 'usage',
                   color: '#3b82f6',
-                  name: 'Usage (kWh)'
+                  name: 'Total Usage (kWh)'
+                }
+              ]}
+              categories={[]}
+            />
+          </div>
+          <div>
+            <BarChart
+              title="Room Latest Power (kW)"
+              data={roomStats
+                .sort((a, b) => b.latestPower - a.latestPower)
+                .map(room => ({
+                  name: room.name,
+                  usage: room.latestPower
+                }))}
+              bars={[
+                {
+                  key: 'usage',
+                  color: '#10b981',
+                  name: 'Latest Power (kW)'
                 }
               ]}
               categories={[]}
