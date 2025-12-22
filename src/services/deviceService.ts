@@ -78,7 +78,14 @@ class DeviceService {
         }
       }
 
-      // 2. STRICT RULE: All other devices use /devices/{id}/power_log (Singular)
+      // 2. Kitchen Fridge Exception (uses plural power_logs)
+      // @ts-ignore
+      // if (device.power_logs && Object.keys(device.power_logs).length > 0) {
+      //   // @ts-ignore
+      //   return { ...device, power_log: device.power_logs };
+      // }
+
+      // 3. STRICT RULE: All other devices use /devices/{id}/power_log (Singular)
       // This is the standard. If it exists on the device object (fetched from Firebase), we are good.
       // We don't need to do anything as the interface now expects `power_log`.
 
@@ -91,12 +98,10 @@ class DeviceService {
   private initializeFirebaseListener() {
     console.log('Initializing Firebase device listener...');
 
-    // Listen to the devices node in Firebase
     const devicesRef = ref(db, 'devices');
     this.firebaseListener = onValue(devicesRef, (snapshot) => {
       console.log('Firebase device listener triggered');
 
-      // Skip updates during bulk operations to prevent conflicts
       if (this.isBulkOperation) {
         console.log('Skipping Firebase listener update during bulk operation');
         return;
@@ -106,18 +111,37 @@ class DeviceService {
       const previousDeviceCount = this.devices.length;
 
       if (data) {
-        // Convert Firebase object to array
-        const newDevices = Object.keys(data).map(id => ({
-          id,
-          ...data[id],
-          room: data[id].room || 'Default Room' // Handle legacy devices without room
-        }));
+        const newDevices = Object.keys(data).map(id => {
+          const raw = data[id];
+
+          // 🔑 NORMALIZATION STEP (THIS IS THE FIX)
+          let normalizedPowerLog: Record<string, number> | undefined;
+
+          if (raw.power_log && typeof raw.power_log === 'object') {
+            normalizedPowerLog = raw.power_log;
+          } else if (raw.power_logs && typeof raw.power_logs === 'object') {
+            // Fridge legacy support
+            normalizedPowerLog = raw.power_logs;
+          }
+
+          return {
+            id,
+            name: raw.name,
+            type: raw.type,
+            room: raw.room || 'Default Room',
+            state: raw.state,
+            status: raw.status,
+            lastUpdated: raw.lastUpdated,
+            power_log: normalizedPowerLog // ✅ ALWAYS SINGULAR IN APP
+          };
+        });
 
         const newDeviceCount = newDevices.length;
 
         if (newDeviceCount > previousDeviceCount) {
-          console.warn(`WARNING: DEVICE COUNT INCREASED: ${previousDeviceCount} -> ${newDeviceCount}`);
-          console.warn('New devices detected:', newDevices.filter(d => !this.devices.find(od => od.id === d.id)));
+          console.warn(
+            `WARNING: DEVICE COUNT INCREASED: ${previousDeviceCount} -> ${newDeviceCount}`
+          );
         }
 
         this.devices = newDevices;
@@ -126,10 +150,10 @@ class DeviceService {
       }
 
       console.log(`Current device count: ${this.devices.length}`);
-      this.enrichDevicesWithLegacyData(); // Try to enrich immediately
       this.notifyListeners();
     });
   }
+
 
   private notifyListeners() {
     this.listeners.forEach(listener => listener(this.devices));
@@ -257,7 +281,7 @@ class DeviceService {
       const toggleHistoryRef = ref(db, `devices/${deviceId}/toggle/history`);
       await set(toggleHistoryRef, {});
 
-      console.log(`Device added successfully: ${name} (${deviceId}) with power_logs and toggle sub-nodes`);
+      console.log(`Device added successfully: ${name} (${deviceId}) with power_log and toggle sub-nodes`);
       return newDevice;
     } catch (error) {
       console.error('Error adding device:', error);
@@ -550,7 +574,7 @@ class DeviceService {
   // Get power logs for a device
   async getDevicePowerLogs(deviceId: string): Promise<Record<string, number>> {
     try {
-      const powerLogsRef = ref(db, `devices/${deviceId}/power_logs`);
+      const powerLogsRef = ref(db, `devices/${deviceId}/power_log`);
       const snapshot = await get(powerLogsRef);
 
       if (snapshot.exists()) {

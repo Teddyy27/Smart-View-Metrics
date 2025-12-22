@@ -180,7 +180,7 @@ const processFirebaseData = (firebaseData: any): DashboardData => {
   // Extract energy data from Firebase
   const acLogs = firebaseData?.ac_power_logs || {};
   const fanLogs = firebaseData?.power_logs || {};
-  const lightLogs = firebaseData?.lights?.power_logs || {};
+  const lightLogs = firebaseData?.lights?.power_log || {};
   const refrigeratorLogs = firebaseData?.refrigerator?.power_logs || {};
 
   const allTimestamps = Array.from(
@@ -198,7 +198,7 @@ const processFirebaseData = (firebaseData: any): DashboardData => {
     const lightPower = typeof lightLogs[ts] === 'number' ? lightLogs[ts] : 0;
     const refrigeratorPower = typeof refrigeratorLogs[ts] === 'number' ? refrigeratorLogs[ts] : 0;
     const totalPower = acPower + fanPower + lightPower + refrigeratorPower;
-    
+
     return {
       name: ts,
       consumption: totalPower / 1000, // Convert to kW
@@ -286,7 +286,7 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
         try {
           const firebaseData = snapshot.val();
           console.log('Firebase data received:', firebaseData);
-          
+
           if (firebaseData && (firebaseData.ac_power_logs || firebaseData.power_logs || firebaseData.lights)) {
             hasFirebaseData = true;
             // Process Firebase data and convert to dashboard format
@@ -324,7 +324,7 @@ export function useDashboardData(): { data: DashboardData | null, loading: boole
         fetchDataFromAPI();
       }
     }, 3000);
-    
+
     return () => {
       if (firebaseUnsubscribe) {
         firebaseUnsubscribe();

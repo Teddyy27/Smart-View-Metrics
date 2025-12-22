@@ -18,49 +18,17 @@ const Analytics = () => {
   const { trackPageAccess } = useUserData();
   const { devices } = useDevices();
   const [selectedRoom, setSelectedRoom] = useState<string>('All Rooms');
-  const [devicePowerLogs, setDevicePowerLogs] = useState<Record<string, Record<string, number>>>({});
 
   // Track page access when component mounts
   useEffect(() => {
     trackPageAccess('Analytics');
   }, [trackPageAccess]);
 
-  // Fetch power logs for all devices in real-time
-  useEffect(() => {
-    const listeners: Array<() => void> = [];
-    
-    devices.forEach(device => {
-      const powerLogsRef = ref(db, `devices/${device.id}/power_logs`);
-      const unsubscribe = onValue(powerLogsRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const logs = snapshot.val() || {};
-          setDevicePowerLogs(prev => ({
-            ...prev,
-            [device.id]: logs
-          }));
-        } else {
-          setDevicePowerLogs(prev => {
-            const updated = { ...prev };
-            delete updated[device.id];
-            return updated;
-          });
-        }
-      }, (error) => {
-        console.error(`Error fetching power logs for device ${device.id}:`, error);
-      });
-      listeners.push(() => off(powerLogsRef, 'value', unsubscribe));
-    });
-
-    return () => {
-      listeners.forEach(unsubscribe => unsubscribe());
-    };
-  }, [devices]);
-
   // Helper to format power in kW (convert watts to kilowatts) - 3 decimal points
   const toKW = (val: number) => (typeof val === 'number' ? (val / 1000).toFixed(3) : '0.000');
   // Helper to format total usage in kWh (convert watt-minutes to kilowatt-hours) - 3 decimal points
   const totalKWh = (arr: any[], key: string) => arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000).toFixed(3) : '0.000';
-  
+
   // Helper to format total usage with multipliers and kWh unit
   const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
     const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
@@ -213,9 +181,10 @@ const Analytics = () => {
 
   // Calculate device power consumption from power_logs
   const calculateDevicePower = (deviceId: string) => {
-    const logs = devicePowerLogs[deviceId] || {};
+    const device = devices.find(d => d.id === deviceId);
+    const logs = device?.power_log || {};
     const logEntries = Object.entries(logs);
-    
+
     if (logEntries.length === 0) {
       return { latest: 0, total: 0 };
     }
@@ -228,15 +197,15 @@ const Analytics = () => {
     // Convert to kWh: sum(watts) / 1000 * (number of minutes / 60)
     const totalWatts = logEntries.reduce((sum, [, power]) => sum + (Number(power) || 0), 0);
     // Assuming each log entry represents 1 minute of consumption
-    const totalKWh = (totalWatts / 60000) ;
+    const totalKWh = (totalWatts / 60000);
 
     return { latest: latestPower, total: totalKWh };
   };
 
   // Aggregate minute-by-minute power data from devices in selected room
   const minuteByMinuteData = useMemo(() => {
-    const roomDevices = selectedRoom === 'All Rooms' 
-      ? devices 
+    const roomDevices = selectedRoom === 'All Rooms'
+      ? devices
       : devices.filter(device => device.room === selectedRoom);
 
     if (roomDevices.length === 0) {
@@ -246,7 +215,7 @@ const Analytics = () => {
     // Collect all timestamps from all devices
     const allTimestamps = new Set<string>();
     roomDevices.forEach(device => {
-      const logs = devicePowerLogs[device.id] || {};
+      const logs = device.power_log || {};
       Object.keys(logs).forEach(timestamp => allTimestamps.add(timestamp));
     });
 
@@ -260,7 +229,7 @@ const Analytics = () => {
 
       // Aggregate power from all devices for this timestamp
       roomDevices.forEach(device => {
-        const logs = devicePowerLogs[device.id] || {};
+        const logs = device.power_log || {};
         const power = Number(logs[timestamp]) || 0;
         if (power > 0) {
           totalPower += power;
@@ -276,12 +245,12 @@ const Analytics = () => {
         deviceCount: Object.keys(devicePowers).length
       };
     }).slice(0, 30); // Show last 30 entries
-  }, [selectedRoom, devices, devicePowerLogs]);
+  }, [selectedRoom, devices]);
 
   // Prepare device summary data for selected room - showing actual devices
   const deviceData = useMemo(() => {
-    const roomDevices = selectedRoom === 'All Rooms' 
-      ? devices 
+    const roomDevices = selectedRoom === 'All Rooms'
+      ? devices
       : devices.filter(device => device.room === selectedRoom);
 
     return roomDevices.map(device => {
@@ -296,7 +265,7 @@ const Analytics = () => {
         state: device.state
       };
     });
-  }, [selectedRoom, devices, devicePowerLogs]);
+  }, [selectedRoom, devices]);
 
   // Debug: Log the latest data points to see what we're getting
   if (data?.energyData && data.energyData.length > 5) {
@@ -308,7 +277,7 @@ const Analytics = () => {
       lightPower: delayedData.lightPower,
       refrigeratorPower: delayedData.refrigeratorPower
     });
-    
+
     // Also log the last 3 data points to see the trend
     const last3Points = data.energyData.slice(-3);
     console.log('Analytics - Last 3 data points:', last3Points.map(point => ({
@@ -468,23 +437,31 @@ const Analytics = () => {
           <DataTable
             title={`Minute-by-Minute Device Data (${selectedRoom})`}
             columns={[
-              { key: 'date', header: 'Date', sortable: true, render: (_: any, row: any) => {
-                const timestamp = row.timestamp || row.name;
-                return parseDateTime(timestamp).date;
-              }},
-              { key: 'time', header: 'Time', sortable: true, render: (_: any, row: any) => {
-                const timestamp = row.timestamp || row.name;
-                return parseDateTime(timestamp).time;
-              }},
-              { key: 'totalPower', header: 'Total Power (kW)', sortable: true, render: (val: number) => {
-                return typeof val === 'number' ? val.toFixed(3) : '0.000';
-              }},
-              { key: 'devicePowers', header: 'Device Breakdown', sortable: false, render: (val: Record<string, number>, row: any) => {
-                if (!val || Object.keys(val).length === 0) return 'No data';
-                return Object.entries(val).map(([deviceName, power]) => 
-                  `${deviceName}: ${(Number(power) / 1000).toFixed(3)} kW`
-                ).join(', ');
-              }},
+              {
+                key: 'date', header: 'Date', sortable: true, render: (_: any, row: any) => {
+                  const timestamp = row.timestamp || row.name;
+                  return parseDateTime(timestamp).date;
+                }
+              },
+              {
+                key: 'time', header: 'Time', sortable: true, render: (_: any, row: any) => {
+                  const timestamp = row.timestamp || row.name;
+                  return parseDateTime(timestamp).time;
+                }
+              },
+              {
+                key: 'totalPower', header: 'Total Power (kW)', sortable: true, render: (val: number) => {
+                  return typeof val === 'number' ? val.toFixed(3) : '0.000';
+                }
+              },
+              {
+                key: 'devicePowers', header: 'Device Breakdown', sortable: false, render: (val: Record<string, number>, row: any) => {
+                  if (!val || Object.keys(val).length === 0) return 'No data';
+                  return Object.entries(val).map(([deviceName, power]) =>
+                    `${deviceName}: ${(Number(power) / 1000).toFixed(3)} kW`
+                  ).join(', ');
+                }
+              },
               { key: 'deviceCount', header: 'Devices', sortable: true, render: (val: number) => val.toString() },
             ]}
             data={minuteByMinuteData}
