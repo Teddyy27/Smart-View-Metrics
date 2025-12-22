@@ -63,7 +63,7 @@ const Dashboard = () => {
   // Calculate device power consumption from power_logs
   // Now using the enriched power_logs from deviceService
   const calculateDevicePower = (device: any) => {
-    const logs = device.power_logs || {};
+    const logs = device.power_log || {};
     const logEntries = Object.entries(logs);
 
     if (logEntries.length === 0) {

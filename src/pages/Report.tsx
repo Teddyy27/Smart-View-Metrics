@@ -76,8 +76,8 @@ const Report = () => {
         roomData[roomName] = { totalWatts: 0 };
       }
 
-      if (device.power_logs) {
-        Object.entries(device.power_logs).forEach(([timestamp, power]) => {
+      if (device.power_log) {
+        Object.entries(device.power_log).forEach(([timestamp, power]) => {
           if (isCurrentMonth(timestamp)) {
             roomData[roomName].totalWatts += (Number(power) || 0);
           }

@@ -9,7 +9,7 @@ export interface Device {
   state: boolean;
   lastUpdated: number;
   status: 'online' | 'offline';
-  power_logs?: Record<string, number>;
+  power_log?: Record<string, number>;
 }
 
 export const deviceTypes = [
@@ -38,115 +38,54 @@ class DeviceService {
   }
 
   private initializeLegacyListeners() {
-    console.log('Initializing legacy power log listeners...');
+    console.log('Initializing strict legacy power log listeners (Bedroom Parent only)...');
 
-    // 1. Listen to 'device' (singular) root path - User suggested location: /device/{id}/power_log
-    const deviceRootRef = ref(db, 'device');
-    onValue(deviceRootRef, (snapshot) => {
-      const val = snapshot.val() || {};
-      console.log(`Alternative 'device' root data received: ${Object.keys(val).length} entries`);
-      this.legacyData['device_root'] = val;
-      this.enrichDevicesWithLegacyData();
-    });
-
-    // 2. Listen to legacy component-based paths AND new specific paths
+    // Bedroom Parent specific legacy paths
     const paths: Record<string, string> = {
-      'ac_root': 'ac_power_logs',
-      'fan_root': 'power_logs',
-      'light_root': 'lights/power_logs', // Plural
-      'light_root_singular': 'lights/power_log', // Singular (User specified for Bedroom Parent)
-      'refrigerator': 'refrigerator/power_logs',
-      'thermostat': 'thermostat/power_logs'
+      'bedroom_parent_fan': 'power_logs',
+      'bedroom_parent_ac': 'ac_power_logs',
+      'bedroom_parent_light': 'lights/power_log'
     };
 
     Object.entries(paths).forEach(([key, path]) => {
-      const legacyRef = ref(db, path);
-      const listener = onValue(legacyRef, (snapshot) => {
+      onValue(ref(db, path), (snapshot) => {
         const val = snapshot.val() || {};
-        console.log(`Legacy/Custom data received for ${key}: ${Object.keys(val).length} entries`);
+        console.log(`Legacy data received for ${key}: ${Object.keys(val).length} entries`);
         this.legacyData[key] = val;
         this.enrichDevicesWithLegacyData();
       });
-      // Store listener for cleanup (if we implemented full cleanup)
     });
   }
 
   private enrichDevicesWithLegacyData() {
-    let changed = false;
     this.devices = this.devices.map(device => {
-      // Priority 1: Existing power_logs in the device object
-      if (device.power_logs && Object.keys(device.power_logs).length > 0) {
-        return device;
-      }
-
-      // Priority 2: Check for 'power_log' (singular) property in the device object (User hint)
-      // @ts-ignore
-      if (device.power_log && Object.keys(device.power_log).length > 0) {
-        // @ts-ignore
-        return { ...device, power_logs: device.power_log };
-      }
-
-      // Priority 3: Check 'device' (singular) root path for matching ID
-      if (this.legacyData['device_root'] && this.legacyData['device_root'][device.id]) {
-        const alternateDeviceData = this.legacyData['device_root'][device.id];
-        // Check for power_log or power_logs in that alternate root
-        if (alternateDeviceData.power_log) {
-          changed = true;
-          return { ...device, power_logs: alternateDeviceData.power_log };
-        }
-        if (alternateDeviceData.power_logs) {
-          changed = true;
-          return { ...device, power_logs: alternateDeviceData.power_logs };
-        }
-      }
-
-      // Priority 4: Specific User Mappings (Room + Type)
-      // "Bedroom Parent"
+      // 1. STRICT RULE: Bedroom Parent uses Legacy Paths
       const normalizedRoom = device.room?.toLowerCase() || '';
       const normalizedType = device.type?.toLowerCase() || '';
 
-      if (normalizedRoom.includes('bedroom') && normalizedRoom.includes('parent')) {
-        if (normalizedType === 'fan' && this.legacyData['fan_root']) {
-          changed = true;
-          return { ...device, power_logs: this.legacyData['fan_root'] };
+      if (normalizedRoom === 'bedroom parent') {
+        // Fan -> /power_logs
+        if (normalizedType === 'fan' && this.legacyData['bedroom_parent_fan']) {
+          return { ...device, power_log: this.legacyData['bedroom_parent_fan'] };
         }
-        if (normalizedType === 'ac' && this.legacyData['ac_root']) {
-          changed = true;
-          return { ...device, power_logs: this.legacyData['ac_root'] };
+        // AC -> /ac_power_logs
+        if (normalizedType === 'ac' && this.legacyData['bedroom_parent_ac']) {
+          return { ...device, power_log: this.legacyData['bedroom_parent_ac'] };
         }
-        if (normalizedType === 'light' && this.legacyData['light_root_singular']) {
-          changed = true;
-          return { ...device, power_logs: this.legacyData['light_root_singular'] };
-        }
-      }
-
-      // Priority 5: Component-specific legacy paths (General Fallback)
-      // BE CAREFUL: "fan" maps to "power_logs" which seems to be the BEDROOM PARENT FAN only?
-      // If so, we should NOT apply it to others.
-      // But keeping existing logic as fallback for now.
-
-      let legacyKey = '';
-      if (device.type === 'ac') legacyKey = 'ac_root';
-      else if (device.type === 'fan') legacyKey = 'fan_root';
-      else if (device.type === 'light') legacyKey = 'light_root';
-      else if (device.type === 'refrigerator') legacyKey = 'refrigerator';
-
-      const legacyLogs = legacyKey ? this.legacyData[legacyKey] : null;
-
-      if (legacyLogs) {
-        // Only apply fallback if NO other data exists
-        if (!device.power_logs || Object.keys(device.power_logs).length === 0) {
-          changed = true;
-          return { ...device, power_logs: legacyLogs };
+        // Light -> /lights/power_log
+        if (normalizedType === 'light' && this.legacyData['bedroom_parent_light']) {
+          return { ...device, power_log: this.legacyData['bedroom_parent_light'] };
         }
       }
+
+      // 2. STRICT RULE: All other devices use /devices/{id}/power_log (Singular)
+      // This is the standard. If it exists on the device object (fetched from Firebase), we are good.
+      // We don't need to do anything as the interface now expects `power_log`.
+
       return device;
     });
 
-    if (changed) {
-      console.log('Devices enriched with mixed legacy/alternative power data');
-      this.notifyListeners();
-    }
+    this.notifyListeners();
   }
 
   private initializeFirebaseListener() {
@@ -302,8 +241,8 @@ class DeviceService {
       // First, create the device
       await set(deviceRef, newDevice);
 
-      // Then, create power_logs sub-node as a separate object
-      const powerLogsRef = ref(db, `devices/${deviceId}/power_logs`);
+      // Then, create power_log sub-node as a separate object
+      const powerLogsRef = ref(db, `devices/${deviceId}/power_log`);
       await set(powerLogsRef, {});
 
       // Create toggle sub-node with nested structure
@@ -597,7 +536,7 @@ class DeviceService {
       const now = Date.now();
       const timestamp = `${new Date().toISOString().split('T')[0]}_${String(Math.floor(now / 60000) % 1440).padStart(4, '0')}`;
 
-      const powerLogRef = ref(db, `devices/${deviceId}/power_logs/${timestamp}`);
+      const powerLogRef = ref(db, `devices/${deviceId}/power_log/${timestamp}`);
       await set(powerLogRef, power);
 
       console.log(`Power logged for device ${deviceId}: ${power}W at ${timestamp}`);
@@ -664,11 +603,11 @@ class DeviceService {
       const now = Date.now();
       let initialized = false;
 
-      // Initialize power_logs if it doesn't exist
-      if (!device.power_logs) {
-        const powerLogsRef = ref(db, `devices/${deviceId}/power_logs`);
+      // Initialize power_log if it doesn't exist
+      if (!device.power_log) {
+        const powerLogsRef = ref(db, `devices/${deviceId}/power_log`);
         await set(powerLogsRef, {});
-        console.log(`Initialized power_logs for device ${deviceId}`);
+        console.log(`Initialized power_log for device ${deviceId}`);
         initialized = true;
       }
 
