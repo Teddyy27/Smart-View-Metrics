@@ -1,16 +1,17 @@
 
 import React from 'react';
-import { 
-  Home, 
-  BarChart2, 
-  Users, 
-  Settings, 
-  Bell, 
-  FileText, 
+import {
+  Home,
+  BarChart2,
+  Users,
+  Settings,
+  Bell,
+  FileText,
   PieChart,
   Database,
   Zap,
-  LogOut
+  LogOut,
+  Sun
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,12 +38,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
     { name: 'Users', icon: Users, path: '/users' },
     { name: 'Report', icon: PieChart, path: '/report' },
     { name: 'Automation', icon: Zap, path: '/automation' },
+    { name: 'Solar', icon: Sun, path: '/solar-prediction' },
     // { name: 'Data Sources', icon: Database, path: '/data-sources' },
     { name: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   return (
-    <aside 
+    <aside
       className={cn(
         "h-screen bg-background border-r transition-all duration-300 flex flex-col",
         collapsed ? "w-16" : "w-64"
@@ -67,12 +69,12 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, toggleSidebar }) => {
             const isActive = currentPath === item.path;
             return (
               <li key={item.name}>
-                <a 
+                <a
                   href={item.path}
                   className={cn(
                     "flex items-center px-3 py-2 rounded-md text-sm transition-colors",
-                    isActive 
-                      ? "bg-primary/10 text-primary font-medium" 
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-primary/5 hover:text-primary",
                     collapsed && "justify-center"
                   )}

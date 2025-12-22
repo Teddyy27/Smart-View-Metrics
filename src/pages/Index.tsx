@@ -62,25 +62,25 @@ const Dashboard = () => {
 
   // Calculate device power consumption from power_logs
   // Now using the enriched power_logs from deviceService
-  const calculateDevicePower = (device: any) => {
-    const logs = device.power_log || {};
-    const logEntries = Object.entries(logs);
+  const calculateDevicePower = (device: { power_log?: Record<string, number> }) => {
+    const logs = device.power_log ?? {};
+    const entries = Object.entries(logs);
 
-    if (logEntries.length === 0) {
+    if (entries.length === 0) {
       return { latest: 0, total: 0 };
     }
 
-    // Get latest power value (most recent timestamp)
-    const sortedEntries = logEntries.sort(([a], [b]) => b.localeCompare(a));
-    const latestPower = sortedEntries[0] ? Number(sortedEntries[0][1]) || 0 : 0;
+    // latest (by timestamp string)
+    entries.sort(([a], [b]) => b.localeCompare(a));
+    const latest = Number(entries[0][1]) || 0;
 
-    // Calculate total power consumption
-    // Values are in kW per minute, so sum all kW-min values and divide by 60 to get kWh
-    const totalKWhMinutes = logEntries.reduce((sum, [, power]) => sum + (Number(power) || 0), 0);
-    const totalKWh = totalKWhMinutes / 60000;
+    // total kWh (1 log = 1 minute, watts)
+    const totalWatts = entries.reduce((sum, [, v]) => sum + (Number(v) || 0), 0);
+    const totalKWh = totalWatts / 60000;
 
-    return { latest: latestPower, total: totalKWh };
+    return { latest, total: totalKWh };
   };
+
 
   // Get all rooms and their stats with power consumption
   const allRooms = deviceService.getAllRooms();
@@ -93,7 +93,7 @@ const Dashboard = () => {
       let totalRoomPower = 0;
       let latestRoomPower = 0;
       roomDevices.forEach(device => {
-        const powerData = calculateDevicePower(device.id);
+        const powerData = calculateDevicePower(device);
         totalRoomPower += powerData.total;
         latestRoomPower += powerData.latest / 1000;
       });

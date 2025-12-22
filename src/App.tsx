@@ -13,6 +13,7 @@ import Users from "./pages/Users";
 import AnalyticsPage from "./pages/Analytics";
 import Report from "./pages/Report";
 import Notification from "./pages/Notification";
+import SolarPrediction from "./pages/SolarPrediction";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/react"
 import PrivateRoute from "./PrivateRoute";
@@ -39,14 +40,14 @@ const App = () => {
     }
   }, []);
   return (
-  <BrowserRouter>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <Routes>
-            <Route path="/login" element={<Login />} />
+    <BrowserRouter>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route path="/login" element={<Login />} />
               <Route
                 path="/"
                 element={
@@ -111,15 +112,23 @@ const App = () => {
                   </PrivateRoute>
                 }
               />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <Analytics />
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
-  </BrowserRouter>
-);
+              <Route
+                path="/solar-prediction"
+                element={
+                  <PrivateRoute>
+                    <SolarPrediction />
+                  </PrivateRoute>
+                }
+              />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            <Analytics />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </BrowserRouter>
+  );
 };
 
 export default App;
