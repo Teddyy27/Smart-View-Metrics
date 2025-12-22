@@ -1,387 +1,171 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import LineChart from '@/components/dashboard/LineChart';
 import BarChart from '@/components/dashboard/BarChart';
 import PieChart from '@/components/dashboard/PieChart';
-import { ref, onValue, off } from 'firebase/database';
-import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Zap, DollarSign, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap, DollarSign, Calendar, Home } from 'lucide-react';
+import { useDevices } from '@/hooks/useDevices';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
-interface CurrentMonthBill {
-  month: string;
-  predicted_bill: number;
-  predicted_energy_kwh: number;
-}
-
-interface NextMonthForecast {
-  month: string;
-  predicted_bill: number;
-  predicted_energy_kwh: number;
-  year: number;
-}
-
-interface PredictedData {
-  current_month_bill: CurrentMonthBill;
-  next_month_forecast: NextMonthForecast;
-}
-
-interface DailyEnergyData {
+interface RoomStats {
   name: string;
-  actualTotal: number;
-  predictedTotal: number;
-  acUsage: number;
-  lightsUsage: number;
-  fanUsage: number;
-  refrigeratorUsage: number;
-  [key: string]: string | number;
+  actualEnergyAtRate: number; // In Rupees
+  predictedEnergyAtRate: number; // In Rupees
+  actualEnergy: number; // KWh
+  predictedEnergy: number; // KWh
+}
+
+interface ReportStats {
+  totalBill: number;
+  totalEnergy: number;
+  nextMonthBill: number;
+  nextMonthEnergy: number;
+  rooms: RoomStats[];
 }
 
 const Report = () => {
   const reportRef = useRef(null);
-  const [predictedData, setPredictedData] = useState<PredictedData>({
-    current_month_bill: {
-      month: '',
-      predicted_bill: 0,
-      predicted_energy_kwh: 0
-    },
-    next_month_forecast: {
-      month: '',
-      predicted_bill: 0,
-      predicted_energy_kwh: 0,
-      year: 0
-    }
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dailyEnergyData, setDailyEnergyData] = useState<DailyEnergyData[]>([]);
   const { user, loading: authLoading } = useAuth();
+  const { devices, loading: devicesLoading } = useDevices();
 
-  // Helper function to format date for display
-  const formatDateForDisplay = (dateString: string) => {
-    try {
-      const [year, month, day] = dateString.split('-');
-      return `${day}/${month}`;
-    } catch {
-      return dateString;
-    }
-  };
+  // Constants
+  const ENERGY_RATE = 8.5; // Rupees per kWh
 
-  // Test Firebase connection
-  useEffect(() => {
-    console.log('Testing Firebase connection...');
-    const testRef = ref(db, '.info/connected');
-    const unsubscribeTest = onValue(testRef, (snapshot) => {
-      const connected = snapshot.val();
-      console.log('Firebase connected:', connected);
-      if (!connected) {
-        setError('Not connected to Firebase');
-        setLoading(false);
+  // Calculations
+  const stats: ReportStats = useMemo(() => {
+    if (devices.length === 0) return {
+      totalBill: 0,
+      totalEnergy: 0,
+      nextMonthBill: 0,
+      nextMonthEnergy: 0,
+      rooms: []
+    };
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const currentDay = now.getDate();
+
+    // Helper to check if a log is from current month
+    const isCurrentMonth = (timestampStr: string) => {
+      // Format: YYYY-MM-DD_HHmm
+      if (!timestampStr) return false;
+      const parts = timestampStr.split('_');
+      if (parts.length < 1) return false;
+      const dateParts = parts[0].split('-');
+      if (dateParts.length < 3) return false;
+
+      const year = parseInt(dateParts[0]);
+      const month = parseInt(dateParts[1]) - 1; // 0-based
+
+      return year === currentYear && month === currentMonth;
+    };
+
+    // Helper to check if a log is from last month (for trend analysis if needed, skipping for now)
+
+    const roomData: Record<string, { totalWatts: number }> = {};
+
+    devices.forEach(device => {
+      const roomName = device.room || 'Unassigned';
+      if (!roomData[roomName]) {
+        roomData[roomName] = { totalWatts: 0 };
+      }
+
+      if (device.power_logs) {
+        Object.entries(device.power_logs).forEach(([timestamp, power]) => {
+          if (isCurrentMonth(timestamp)) {
+            roomData[roomName].totalWatts += (Number(power) || 0);
+          }
+        });
       }
     });
-    
-    return () => off(testRef, 'value', unsubscribeTest);
-  }, []);
 
-    // Fetch energy data and calculate daily totals
-  useEffect(() => {
-    if (authLoading) return;
+    const rooms: RoomStats[] = Object.entries(roomData).map(([name, data]) => {
+      // Convert Watts (sampled every minute) to kWh
+      // Total Watt-Minutes / 60 = Total Watt-Hours
+      // Total Watt-Hours / 1000 = kWh
+      const actualKWh = (data.totalWatts / 60) / 1000;
 
-    if (!user) {
-      setError('Please log in to view reports');
-      setLoading(false);
-      return;
-    }
+      // Prediction Logic: 
+      // Average Daily Usage = Actual / Current Day
+      // Predicted = Actual + (Avg Daily * (Days in Month - Current Day))
 
-    console.log('Fetching energy data from Firebase...');
-    
-    // Store all device data
-    let allDeviceData: { [deviceType: string]: any } = {};
-    let dataReceived = 0;
-    const totalDevices = 4;
+      // If currentDay is 1 (start of month), prediction might be volatile. 
+      // We can fallback to data from previous months if available, but for now simple extrapolation.
 
-    // Process and aggregate energy data by day (using Analytics page logic)
-    const processAllEnergyData = () => {
-      if (dataReceived < totalDevices) return; // Wait for all data
+      // Avoid division by zero if it's very early on 1st day (use 1 as divisor minimum, or 0.5 for half day?)
+      // Let's use currentDay (fractional if we had time, but Integer is fine). 
+      // If we are at day 5, we have roughly 5 days of data.
 
-      const dailyTotals: { 
-        [key: string]: { 
-          acTotal: number; 
-          lightingTotal: number; 
-          fanTotal: number; 
-          refrigeratorTotal: number; 
-          peak: number 
-        } 
-      } = {};
-      
-      // Process all device data together with Analytics page logic
-      Object.entries(allDeviceData).forEach(([deviceType, data]) => {
-        Object.entries(data).forEach(([timestamp, power]) => {
-          const powerValue = Number(power) || 0;
-          const date = timestamp.split('_')[0]; // Extract date from timestamp
-          
-          if (!dailyTotals[date]) {
-            dailyTotals[date] = { acTotal: 0, lightingTotal: 0, fanTotal: 0, refrigeratorTotal: 0, peak: 0 };
-          }
-          
-          // Apply Analytics page logic: sum all values, then divide by 60 and 1000
-          if (deviceType === 'ac') {
-            dailyTotals[date].acTotal += powerValue;
-          } else if (deviceType === 'light') {
-            dailyTotals[date].lightingTotal += powerValue;
-          } else if (deviceType === 'fan') {
-            dailyTotals[date].fanTotal += powerValue;
-          } else if (deviceType === 'refrigerator') {
-            dailyTotals[date].refrigeratorTotal += powerValue;
-          }
-          
-          dailyTotals[date].peak = Math.max(dailyTotals[date].peak, powerValue);
-        });
-      });
+      const avgDailyKWh = currentDay > 0 ? actualKWh / currentDay : 0;
+      const remainingDays = daysInMonth - currentDay;
+      const predictedKWh = actualKWh + (avgDailyKWh * remainingDays);
 
-      // Calculate predicted daily total based on next month prediction
-      const calculatePredictedDaily = () => {
-        const nextMonthPrediction = predictedData.next_month_forecast.predicted_energy_kwh;
-        const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-        return nextMonthPrediction / daysInMonth;
+      return {
+        name,
+        actualEnergy: actualKWh,
+        predictedEnergy: predictedKWh,
+        actualEnergyAtRate: actualKWh * ENERGY_RATE,
+        predictedEnergyAtRate: predictedKWh * ENERGY_RATE
       };
-
-      const predictedDailyTotal = calculatePredictedDaily();
-
-      // Convert to chart format using Analytics page logic
-      const chartData = Object.entries(dailyTotals).map(([date, data]) => {
-        // Apply Analytics page logic (no multipliers now)
-        const acKWh = (data.acTotal / 60 / 1000);
-        const lightingKWh = (data.lightingTotal / 60 / 1000);
-        const fanKWh = (data.fanTotal / 60 / 1000);
-        const refrigeratorKWh = (data.refrigeratorTotal / 60 / 1000);
-        
-        const actualTotal = acKWh + lightingKWh + fanKWh + refrigeratorKWh;
-        
-        return {
-          name: date, // Keep original date format for sorting
-          actualTotal: actualTotal,
-          predictedTotal: predictedDailyTotal,
-          acUsage: acKWh,
-          lightsUsage: lightingKWh,
-          fanUsage: fanKWh,
-          refrigeratorUsage: refrigeratorKWh
-        };
-      });
-
-      // Sort by date and get the last 7 days (oldest first for correct X-axis order)
-      const sortedData = chartData.sort((a, b) => a.name.localeCompare(b.name));
-      const last7Days = sortedData.slice(-7);
-      
-      // Add predictive values for missing days and format dates
-      const enhancedData = last7Days.map((day, index) => {
-        // Create more realistic predictive variation
-        const basePrediction = predictedDailyTotal;
-        
-        // Add trend-based variation (weekend vs weekday patterns)
-        const dayOfWeek = new Date(day.name).getDay(); // 0 = Sunday, 6 = Saturday
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        
-        // Weekend typically has higher energy usage
-        const weekendFactor = isWeekend ? 1.15 : 1.0;
-        
-        // Add some random variation (±5%)
-        const randomVariation = 1 + (Math.random() - 0.5) * 0.1;
-        
-        // Add trend based on actual data (if available)
-        const trendFactor = day.actualTotal > 0 ? 
-          Math.min(Math.max(day.actualTotal / basePrediction, 0.8), 1.2) : 1.0;
-        
-        const enhancedPrediction = basePrediction * weekendFactor * randomVariation * trendFactor;
-        
-        return {
-          ...day,
-          name: formatDateForDisplay(day.name), // Format date after sorting
-          predictedTotal: enhancedPrediction
-        };
-      });
-      
-      setDailyEnergyData(enhancedData);
-    };
-
-    // Fetch energy data from various Firebase paths
-    const acPowerRef = ref(db, 'ac_power_logs');
-    const fanPowerRef = ref(db, 'power_logs');
-    const lightPowerRef = ref(db, 'lights/power_logs');
-    const refrigeratorPowerRef = ref(db, 'refrigerator/power_logs');
-
-    const unsubscribeAC = onValue(acPowerRef, (snapshot) => {
-      allDeviceData['ac'] = snapshot.val() || {};
-      dataReceived++;
-      processAllEnergyData();
     });
 
-    const unsubscribeFan = onValue(fanPowerRef, (snapshot) => {
-      allDeviceData['fan'] = snapshot.val() || {};
-      dataReceived++;
-      processAllEnergyData();
-    });
+    const totalEnergy = rooms.reduce((acc, r) => acc + r.predictedEnergy, 0);
+    const totalBill = totalEnergy * ENERGY_RATE;
 
-    const unsubscribeLight = onValue(lightPowerRef, (snapshot) => {
-      allDeviceData['light'] = snapshot.val() || {};
-      dataReceived++;
-      processAllEnergyData();
-    });
-
-    const unsubscribeRefrigerator = onValue(refrigeratorPowerRef, (snapshot) => {
-      allDeviceData['refrigerator'] = snapshot.val() || {};
-      dataReceived++;
-      processAllEnergyData();
-    });
-
-    return () => {
-      off(acPowerRef, 'value', unsubscribeAC);
-      off(fanPowerRef, 'value', unsubscribeFan);
-      off(lightPowerRef, 'value', unsubscribeLight);
-      off(refrigeratorPowerRef, 'value', unsubscribeRefrigerator);
-    };
-  }, [user, authLoading]);
-
-  // Fetch predicted data from Firebase
-  // Note: next_month_forecast now directly fetches from the predicted_energy_kwh endpoint
-  useEffect(() => {
-    if (authLoading) {
-      console.log('Waiting for authentication...');
-      return;
-    }
-
-    if (!user) {
-      console.log('User not authenticated');
-      setError('Please log in to view reports');
-      setLoading(false);
-      return;
-    }
-
-    console.log('User authenticated, setting up Firebase listeners...');
-    
-    const currentMonthBillRef = ref(db, 'current_month_bill');
-    const nextMonthForecastRef = ref(db, 'next_month_forecast/predicted_energy_kwh');
-
-    console.log('Listening to current_month_bill...');
-    const unsubscribeCurrent = onValue(currentMonthBillRef, (snapshot) => {
-      const value = snapshot.val();
-      console.log('Current month bill data:', value);
-      setPredictedData(prev => ({
-        ...prev,
-        current_month_bill: value || {
-          month: '',
-          predicted_bill: 0,
-          predicted_energy_kwh: 0
-        }
-      }));
-      setLoading(false);
-      setError(null);
-    }, (error) => {
-      console.error('Error fetching current_month_bill:', error);
-      setError(`Error fetching current month bill: ${error.message}`);
-      setLoading(false);
-    });
-
-    console.log('Listening to next_month_forecast/predicted_energy_kwh...');
-    const unsubscribeNext = onValue(nextMonthForecastRef, (snapshot) => {
-      const value = snapshot.val();
-      console.log('Next month forecast predicted energy data:', value);
-      
-      // Since we're now directly accessing the predicted energy value,
-      // we need to create a forecast object with the current data
-      const currentDate = new Date();
-      const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-      
-      setPredictedData(prev => ({
-        ...prev,
-        next_month_forecast: {
-          month: monthNames[nextMonth.getMonth()],
-          predicted_bill: 0, // We'll need to calculate this or get from another endpoint
-          predicted_energy_kwh: value || 0,
-          year: nextMonth.getFullYear()
-        }
-      }));
-      setLoading(false);
-      setError(null);
-    }, (error) => {
-      console.error('Error fetching next_month_forecast/predicted_energy_kwh:', error);
-      setError(`Error fetching next month forecast: ${error.message}`);
-      setLoading(false);
-    });
-
-    return () => {
-      console.log('Cleaning up Firebase listeners...');
-      off(currentMonthBillRef, 'value', unsubscribeCurrent);
-      off(nextMonthForecastRef, 'value', unsubscribeNext);
-    };
-  }, [user, authLoading]);
-
-  // Calculate summary statistics
-  const calculateSummaryStats = () => {
-    if (dailyEnergyData.length === 0) return null;
-
-    const actualTotals = dailyEnergyData.map(d => d.actualTotal);
-    const predictedTotals = dailyEnergyData.map(d => d.predictedTotal);
-
-    const avgActual = actualTotals.reduce((a, b) => a + b, 0) / actualTotals.length;
-    const avgPredicted = predictedTotals.reduce((a, b) => a + b, 0) / predictedTotals.length;
-    const maxActual = Math.max(...actualTotals);
-    const minActual = Math.min(...actualTotals);
-    const variance = ((avgActual - avgPredicted) / avgPredicted) * 100;
+    // Simple forecast for next month (e.g., same as this month for now, or +5% variation)
+    // Refined: Maybe season based? But simple is: 
+    const nextMonthEnergy = totalEnergy;
+    const nextMonthBill = totalBill;
 
     return {
-      avgActual: avgActual.toFixed(2),
-      avgPredicted: avgPredicted.toFixed(2),
-      maxActual: maxActual.toFixed(2),
-      minActual: minActual.toFixed(2),
-      variance: variance.toFixed(1),
-      isOverBudget: variance > 0
+      totalBill,
+      totalEnergy,
+      nextMonthBill,
+      nextMonthEnergy,
+      rooms: rooms.sort((a, b) => b.predictedEnergyAtRate - a.predictedEnergyAtRate)
     };
-  };
+  }, [devices]);
 
-  // Calculate device breakdown for pie chart
-  const calculateDeviceBreakdown = () => {
-    if (dailyEnergyData.length === 0) return [];
+  const loading = authLoading || devicesLoading;
 
-    const totalAC = dailyEnergyData.reduce((sum, day) => sum + day.acUsage, 0);
-    const totalLighting = dailyEnergyData.reduce((sum, day) => sum + day.lightsUsage, 0);
-    const totalFan = dailyEnergyData.reduce((sum, day) => sum + day.fanUsage, 0);
-    const totalRefrigerator = dailyEnergyData.reduce((sum, day) => sum + day.refrigeratorUsage, 0);
-
-    return [
-      { name: 'AC', value: totalAC, color: '#3b82f6' },
-      { name: 'Lights', value: totalLighting, color: '#8b5cf6' },
-      { name: 'Fan', value: totalFan, color: '#10b981' },
-      { name: 'Refrigerator', value: totalRefrigerator, color: '#06b6d4' }
-    ].filter(item => item.value > 0);
-  };
+  // Pie Chart Data (Bill Breakdown by Room)
+  const pieChartData = stats.rooms.map((room, index) => ({
+    name: room.name,
+    value: parseFloat(room.predictedEnergyAtRate.toFixed(2)),
+    color: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'][index % 6]
+  })).filter(item => item.value > 0);
 
   // PDF Export
   const handleExportPDF = () => {
     if (reportRef.current) {
-      html2pdf().from(reportRef.current).save('smartview_report.pdf');
+      const opt = {
+        margin: 10,
+        filename: 'smartview_energy_report.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(reportRef.current).save();
     }
   };
 
   // CSV Export
   const handleExportCSV = () => {
     const csvRows = [
-      ['Date', 'Actual Total (kWh)', 'Predicted Total (kWh)', 'AC (kWh)', 'Lights (kWh)', 'Fan (kWh)', 'Refrigerator (kWh)'],
-      ...dailyEnergyData.map(d => [
-        d.name, 
-        d.actualTotal.toFixed(2), 
-        d.predictedTotal.toFixed(2),
-        d.acUsage.toFixed(2),
-        d.lightsUsage.toFixed(2),
-        d.fanUsage.toFixed(2),
-        d.refrigeratorUsage.toFixed(2)
+      ['Room', 'Projected Energy (kWh)', 'Projected Cost (₹)'],
+      ...stats.rooms.map(r => [
+        r.name,
+        r.predictedEnergy.toFixed(2),
+        r.predictedEnergyAtRate.toFixed(2)
       ]),
+      [],
+      ['Total', stats.totalEnergy.toFixed(2), stats.totalBill.toFixed(2)]
     ];
     const csvContent = csvRows.map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -398,9 +182,6 @@ const Report = () => {
     window.print();
   };
 
-  const summaryStats = calculateSummaryStats();
-  const deviceBreakdown = calculateDeviceBreakdown();
-
   if (loading) {
     return (
       <Layout>
@@ -413,175 +194,178 @@ const Report = () => {
     );
   }
 
-  if (error) {
-    return (
-      <Layout>
-        <div className="h-full flex items-center justify-center">
-          <div className="text-xl font-medium text-red-500">
-            Error: {error}
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  // Current Month Name
+  const monthName = new Date().toLocaleString('default', { month: 'long' });
+  const year = new Date().getFullYear();
 
   return (
     <Layout>
       <div className="max-w-7xl mx-auto py-8">
         {/* Export/Print Buttons */}
         <div className="flex flex-wrap gap-2 mb-6 print:hidden">
-          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90" onClick={handleExportPDF}>
+          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition-colors" onClick={handleExportPDF}>
             Export PDF
           </button>
-          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90" onClick={handleExportCSV}>
+          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition-colors" onClick={handleExportCSV}>
             Export CSV
           </button>
-          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90" onClick={handlePrint}>
+          <button className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/90 transition-colors" onClick={handlePrint}>
             Print Report
           </button>
         </div>
-        
-        <div ref={reportRef}>
+
+        <div ref={reportRef} className="bg-white p-6 rounded-lg shadow-sm">
           {/* Header Section */}
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2">SmartView Energy Report</h1>
-            <p className="text-muted-foreground">Comprehensive energy consumption analysis and next month energy predictions</p>
+          <div className="mb-8 border-b pb-4">
+            <h1 className="text-3xl font-bold mb-2 text-gray-800">SmartView Energy Report</h1>
+            <p className="text-muted-foreground">
+              Energy consumption analysis and predictions for {monthName} {year}
+            </p>
           </div>
 
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <Card>
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <Card className="border-l-4 border-l-blue-500 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Next Month Bill (Estimated)</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-600">Projected Monthly Bill</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">₹{(predictedData.next_month_forecast.predicted_energy_kwh * 8.5).toFixed(0)}</div>
-                <p className="text-xs text-muted-foreground">{predictedData.next_month_forecast.month} {predictedData.next_month_forecast.year} (₹8.5/kWh rate)</p>
+                <div className="text-3xl font-bold text-gray-900">₹{stats.totalBill.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Estimated for {monthName} (Rate: ₹{ENERGY_RATE}/kWh)
+                </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-l-4 border-l-green-500 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Next Month Energy Prediction</CardTitle>
-                <Zap className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-600">Projected Energy Usage</CardTitle>
+                <Zap className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{predictedData.next_month_forecast.predicted_energy_kwh.toFixed(2)} kWh</div>
-                <p className="text-xs text-muted-foreground">Next Month Forecast</p>
+                <div className="text-3xl font-bold text-gray-900">{stats.totalEnergy.toFixed(2)} kWh</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Estimated for {monthName}
+                </p>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-l-4 border-l-purple-500 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Current Month</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium text-gray-600">Highest Consuming Room</CardTitle>
+                <Home className="h-4 w-4 text-purple-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">₹{predictedData.current_month_bill.predicted_bill.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">{predictedData.current_month_bill.month}</p>
+                <div className="text-2xl font-bold text-gray-900 truncate">
+                  {stats.rooms.length > 0 ? stats.rooms[0].name : "N/A"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  ₹{stats.rooms.length > 0 ? stats.rooms[0].predictedEnergyAtRate.toFixed(0) : 0} estimated cost
+                </p>
               </CardContent>
             </Card>
           </div>
 
           {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Device Breakdown */}
-            <Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            {/* Bill Breakdown Pie Chart */}
+            <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>Energy Consumption by Device</CardTitle>
+                <CardTitle>Predicted Bill by Room</CardTitle>
               </CardHeader>
               <CardContent>
-                {deviceBreakdown.length > 0 ? (
+                {pieChartData.length > 0 ? (
                   <PieChart
                     title=""
-                    data={deviceBreakdown}
+                    data={pieChartData}
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-64 text-muted-foreground">
-                    No device data available
+                  <div className="flex items-center justify-center h-64 text-muted-foreground bg-gray-50 rounded-md">
+                    No energy data available for this month
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Device Comparison Chart */}
-            <Card>
+            {/* Room Comparison Bar Chart */}
+            <Card className="shadow-md">
               <CardHeader>
-                <CardTitle>Device Usage Comparison (Last 7 Days)</CardTitle>
+                <CardTitle>Room Energy Usage Project (Last 7 Days)</CardTitle>
               </CardHeader>
               <CardContent>
-                {dailyEnergyData.length > 0 ? (
+                {stats.rooms.length > 0 ? (
                   <BarChart
                     title=""
-                    data={[
-                      {
-                        name: 'AC',
-                        usage: dailyEnergyData.reduce((sum, day) => sum + day.acUsage, 0)
-                      },
-                      {
-                        name: 'Lights',
-                        usage: dailyEnergyData.reduce((sum, day) => sum + day.lightsUsage, 0)
-                      },
-                      {
-                        name: 'Fan',
-                        usage: dailyEnergyData.reduce((sum, day) => sum + day.fanUsage, 0)
-                      },
-                      {
-                        name: 'Refrigerator',
-                        usage: dailyEnergyData.reduce((sum, day) => sum + day.refrigeratorUsage, 0)
-                      }
-                    ]}
+                    data={stats.rooms.map(r => ({
+                      name: r.name,
+                      usage: parseFloat(r.predictedEnergy.toFixed(2))
+                    }))}
                     bars={[
                       {
                         key: 'usage',
                         color: '#3b82f6',
-                        name: 'Total Usage (kWh)'
+                        name: 'Predicted kWh'
                       }
                     ]}
                     categories={[]}
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-64 text-muted-foreground">
-                    No device data available
+                  <div className="flex items-center justify-center h-64 text-muted-foreground bg-gray-50 rounded-md">
+                    No energy data available
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Summary Statistics */}
-          {summaryStats && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Usage Statistics (Last 7 Days)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{summaryStats.avgActual}</div>
-                    <div className="text-sm text-muted-foreground">Avg Daily Usage (kWh)</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{summaryStats.avgPredicted}</div>
-                    <div className="text-sm text-muted-foreground">Avg Predicted (kWh)</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600">{summaryStats.maxActual}</div>
-                    <div className="text-sm text-muted-foreground">Peak Usage (kWh)</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">{summaryStats.minActual}</div>
-                    <div className="text-sm text-muted-foreground">Min Usage (kWh)</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Detailed Statistics Table */}
+          <Card className="shadow-md mb-6">
+            <CardHeader>
+              <CardTitle>Detailed Room Predictions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-600 font-medium">
+                    <tr>
+                      <th className="px-4 py-3 rounded-tl-lg">Room</th>
+                      <th className="px-4 py-3">Actual Usage (So Far)</th>
+                      <th className="px-4 py-3">Predicted Usage (Month End)</th>
+                      <th className="px-4 py-3 rounded-tr-lg">Predicted Bill (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {stats.rooms.map((room, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50/50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{room.name}</td>
+                        <td className="px-4 py-3">{room.actualEnergy.toFixed(2)} kWh</td>
+                        <td className="px-4 py-3">{room.predictedEnergy.toFixed(2)} kWh</td>
+                        <td className="px-4 py-3 text-blue-600 font-semibold">₹{room.predictedEnergyAtRate.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                    {stats.rooms.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-gray-500">No data available</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  <tfoot className="bg-gray-50 font-semibold text-gray-900">
+                    <tr>
+                      <td className="px-4 py-3">Total</td>
+                      <td className="px-4 py-3">{stats.rooms.reduce((a, b) => a + b.actualEnergy, 0).toFixed(2)} kWh</td>
+                      <td className="px-4 py-3">{stats.totalEnergy.toFixed(2)} kWh</td>
+                      <td className="px-4 py-3 text-blue-700">₹{stats.totalBill.toFixed(2)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </Layout>
   );
 };
 
-export default Report; 
+export default Report;

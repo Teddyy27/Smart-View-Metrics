@@ -9,6 +9,7 @@ export interface Device {
   state: boolean;
   lastUpdated: number;
   status: 'online' | 'offline';
+  power_logs?: Record<string, number>;
 }
 
 export const deviceTypes = [
@@ -28,19 +29,134 @@ class DeviceService {
   private firebaseListener: (() => void) | null = null;
   private isBulkOperation: boolean = false;
   private isAutomaticCreationDisabled: boolean = false; // Enable automatic device creation
+  private legacyData: Record<string, any> = {};
+  private legacyListeners: Record<string, (snapshot: any) => void> = {};
 
   constructor() {
+    this.initializeLegacyListeners();
     this.initializeFirebaseListener();
+  }
+
+  private initializeLegacyListeners() {
+    console.log('Initializing legacy power log listeners...');
+
+    // 1. Listen to 'device' (singular) root path - User suggested location: /device/{id}/power_log
+    const deviceRootRef = ref(db, 'device');
+    onValue(deviceRootRef, (snapshot) => {
+      const val = snapshot.val() || {};
+      console.log(`Alternative 'device' root data received: ${Object.keys(val).length} entries`);
+      this.legacyData['device_root'] = val;
+      this.enrichDevicesWithLegacyData();
+    });
+
+    // 2. Listen to legacy component-based paths AND new specific paths
+    const paths: Record<string, string> = {
+      'ac_root': 'ac_power_logs',
+      'fan_root': 'power_logs',
+      'light_root': 'lights/power_logs', // Plural
+      'light_root_singular': 'lights/power_log', // Singular (User specified for Bedroom Parent)
+      'refrigerator': 'refrigerator/power_logs',
+      'thermostat': 'thermostat/power_logs'
+    };
+
+    Object.entries(paths).forEach(([key, path]) => {
+      const legacyRef = ref(db, path);
+      const listener = onValue(legacyRef, (snapshot) => {
+        const val = snapshot.val() || {};
+        console.log(`Legacy/Custom data received for ${key}: ${Object.keys(val).length} entries`);
+        this.legacyData[key] = val;
+        this.enrichDevicesWithLegacyData();
+      });
+      // Store listener for cleanup (if we implemented full cleanup)
+    });
+  }
+
+  private enrichDevicesWithLegacyData() {
+    let changed = false;
+    this.devices = this.devices.map(device => {
+      // Priority 1: Existing power_logs in the device object
+      if (device.power_logs && Object.keys(device.power_logs).length > 0) {
+        return device;
+      }
+
+      // Priority 2: Check for 'power_log' (singular) property in the device object (User hint)
+      // @ts-ignore
+      if (device.power_log && Object.keys(device.power_log).length > 0) {
+        // @ts-ignore
+        return { ...device, power_logs: device.power_log };
+      }
+
+      // Priority 3: Check 'device' (singular) root path for matching ID
+      if (this.legacyData['device_root'] && this.legacyData['device_root'][device.id]) {
+        const alternateDeviceData = this.legacyData['device_root'][device.id];
+        // Check for power_log or power_logs in that alternate root
+        if (alternateDeviceData.power_log) {
+          changed = true;
+          return { ...device, power_logs: alternateDeviceData.power_log };
+        }
+        if (alternateDeviceData.power_logs) {
+          changed = true;
+          return { ...device, power_logs: alternateDeviceData.power_logs };
+        }
+      }
+
+      // Priority 4: Specific User Mappings (Room + Type)
+      // "Bedroom Parent"
+      const normalizedRoom = device.room?.toLowerCase() || '';
+      const normalizedType = device.type?.toLowerCase() || '';
+
+      if (normalizedRoom.includes('bedroom') && normalizedRoom.includes('parent')) {
+        if (normalizedType === 'fan' && this.legacyData['fan_root']) {
+          changed = true;
+          return { ...device, power_logs: this.legacyData['fan_root'] };
+        }
+        if (normalizedType === 'ac' && this.legacyData['ac_root']) {
+          changed = true;
+          return { ...device, power_logs: this.legacyData['ac_root'] };
+        }
+        if (normalizedType === 'light' && this.legacyData['light_root_singular']) {
+          changed = true;
+          return { ...device, power_logs: this.legacyData['light_root_singular'] };
+        }
+      }
+
+      // Priority 5: Component-specific legacy paths (General Fallback)
+      // BE CAREFUL: "fan" maps to "power_logs" which seems to be the BEDROOM PARENT FAN only?
+      // If so, we should NOT apply it to others.
+      // But keeping existing logic as fallback for now.
+
+      let legacyKey = '';
+      if (device.type === 'ac') legacyKey = 'ac_root';
+      else if (device.type === 'fan') legacyKey = 'fan_root';
+      else if (device.type === 'light') legacyKey = 'light_root';
+      else if (device.type === 'refrigerator') legacyKey = 'refrigerator';
+
+      const legacyLogs = legacyKey ? this.legacyData[legacyKey] : null;
+
+      if (legacyLogs) {
+        // Only apply fallback if NO other data exists
+        if (!device.power_logs || Object.keys(device.power_logs).length === 0) {
+          changed = true;
+          return { ...device, power_logs: legacyLogs };
+        }
+      }
+      return device;
+    });
+
+    if (changed) {
+      console.log('Devices enriched with mixed legacy/alternative power data');
+      this.notifyListeners();
+    }
   }
 
   private initializeFirebaseListener() {
     console.log('Initializing Firebase device listener...');
-    
+
     // Listen to the devices node in Firebase
     const devicesRef = ref(db, 'devices');
     this.firebaseListener = onValue(devicesRef, (snapshot) => {
       console.log('Firebase device listener triggered');
-      
+
       // Skip updates during bulk operations to prevent conflicts
       if (this.isBulkOperation) {
         console.log('Skipping Firebase listener update during bulk operation');
@@ -49,28 +165,29 @@ class DeviceService {
 
       const data = snapshot.val();
       const previousDeviceCount = this.devices.length;
-      
-        if (data) {
-          // Convert Firebase object to array
-          const newDevices = Object.keys(data).map(id => ({
-            id,
-            ...data[id],
-            room: data[id].room || 'Default Room' // Handle legacy devices without room
-          }));
-        
+
+      if (data) {
+        // Convert Firebase object to array
+        const newDevices = Object.keys(data).map(id => ({
+          id,
+          ...data[id],
+          room: data[id].room || 'Default Room' // Handle legacy devices without room
+        }));
+
         const newDeviceCount = newDevices.length;
-        
+
         if (newDeviceCount > previousDeviceCount) {
           console.warn(`WARNING: DEVICE COUNT INCREASED: ${previousDeviceCount} -> ${newDeviceCount}`);
           console.warn('New devices detected:', newDevices.filter(d => !this.devices.find(od => od.id === d.id)));
         }
-        
+
         this.devices = newDevices;
       } else {
         this.devices = [];
       }
-      
+
       console.log(`Current device count: ${this.devices.length}`);
+      this.enrichDevicesWithLegacyData(); // Try to enrich immediately
       this.notifyListeners();
     });
   }
@@ -84,7 +201,7 @@ class DeviceService {
     this.listeners.push(listener);
     // Immediately call with current devices
     listener(this.devices);
-    
+
     // Return unsubscribe function
     return () => {
       const index = this.listeners.indexOf(listener);
@@ -99,7 +216,7 @@ class DeviceService {
     const duplicates: string[] = [];
     const seenNames = new Set<string>();
     const devicesToRemove: string[] = [];
-    
+
     // Find duplicates by name
     this.devices.forEach(device => {
       const normalizedName = device.name.toLowerCase().trim();
@@ -110,13 +227,13 @@ class DeviceService {
         seenNames.add(normalizedName);
       }
     });
-    
+
     // Remove duplicate devices
     if (devicesToRemove.length > 0) {
       console.log(`Removing ${devicesToRemove.length} duplicate devices:`, duplicates);
       await this.removeMultipleDevices(devicesToRemove);
     }
-    
+
     return {
       removed: devicesToRemove.length,
       duplicates
@@ -146,14 +263,14 @@ class DeviceService {
       data,
       stack: new Error().stack?.split('\n').slice(2, 6).join('\n') // Get call stack
     };
-    
+
     console.group(`Device Creation Attempt from ${caller}`);
     console.log('Timestamp:', logData.timestamp);
     console.log('Caller:', caller);
     console.log('Data:', data);
     console.log('Call Stack:', logData.stack);
     console.groupEnd();
-    
+
     // Save to Firebase for monitoring
     const logRef = ref(db, `logs/deviceCreationAttempts/${Date.now()}`);
     set(logRef, logData).catch(error => {
@@ -164,10 +281,10 @@ class DeviceService {
   // Add a new device
   async addDevice(name: string, type: string, room: string, togglePath?: string): Promise<Device> {
     console.log(`Adding new device: ${name} (${type}) to room: ${room}`);
-    
+
     const deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = Date.now();
-    
+
     const newDevice: Device = {
       id: deviceId,
       name,
@@ -181,14 +298,14 @@ class DeviceService {
     try {
       // Add device to Firebase
       const deviceRef = ref(db, `devices/${deviceId}`);
-      
+
       // First, create the device
       await set(deviceRef, newDevice);
-      
+
       // Then, create power_logs sub-node as a separate object
       const powerLogsRef = ref(db, `devices/${deviceId}/power_logs`);
       await set(powerLogsRef, {});
-      
+
       // Create toggle sub-node with nested structure
       const toggleRef = ref(db, `devices/${deviceId}/toggle`);
       await set(toggleRef, {
@@ -196,11 +313,11 @@ class DeviceService {
         lastToggle: now,
         toggleCount: 0
       });
-      
+
       // Create toggle history sub-node
       const toggleHistoryRef = ref(db, `devices/${deviceId}/toggle/history`);
       await set(toggleHistoryRef, {});
-      
+
       console.log(`Device added successfully: ${name} (${deviceId}) with power_logs and toggle sub-nodes`);
       return newDevice;
     } catch (error) {
@@ -214,13 +331,13 @@ class DeviceService {
     try {
       const now = Date.now();
       const deviceRef = ref(db, `devices/${id}`);
-      
+
       // Get current toggle data
       const deviceSnapshot = await get(deviceRef);
       const currentDevice = deviceSnapshot.val();
       const currentToggleCount = currentDevice?.toggle?.toggleCount || 0;
       const toggleHistory = currentDevice?.toggle?.history || {};
-      
+
       // Update device state and toggle information
       await update(deviceRef, {
         state: newState,
@@ -234,14 +351,14 @@ class DeviceService {
           action: newState ? 'ON' : 'OFF'
         }
       });
-      
+
       // Keep only last 100 toggle events in history
       const historyKeys = Object.keys(toggleHistory).sort();
       if (historyKeys.length >= 100) {
         const oldestKey = historyKeys[0];
         await remove(ref(db, `devices/${id}/toggle/history/${oldestKey}`));
       }
-      
+
       console.log(`Device ${id} toggled to ${newState ? 'ON' : 'OFF'}`);
     } catch (error) {
       console.error(`Error toggling device ${id}:`, error);
@@ -253,27 +370,27 @@ class DeviceService {
   async removeDevice(deviceId: string): Promise<boolean> {
     try {
       console.log(`Attempting to remove device: ${deviceId}`);
-      
+
       // First, check if the device exists
       const deviceRef = ref(db, `devices/${deviceId}`);
       const snapshot = await get(deviceRef);
-    
+
       if (!snapshot.exists()) {
         console.error(`Device ${deviceId} does not exist in Firebase`);
         return false;
       }
-      
+
       console.log(`Device ${deviceId} found, proceeding with removal`);
-      
+
       // Remove the device from Firebase
       await remove(deviceRef);
-      
+
       console.log(`Device ${deviceId} successfully removed from Firebase`);
       return true;
-      
+
     } catch (error) {
       console.error('Error removing device:', error);
-      
+
       // Log more detailed error information
       if (error instanceof Error) {
         console.error('Error details:', {
@@ -282,7 +399,7 @@ class DeviceService {
           stack: error.stack
         });
       }
-      
+
       return false;
     }
   }
@@ -290,30 +407,30 @@ class DeviceService {
   // Remove multiple devices (bulk operation)
   async removeMultipleDevices(deviceIds: string[]): Promise<{ success: boolean; results: any[] }> {
     console.log(`Starting bulk removal of ${deviceIds.length} devices`);
-    
+
     // Set bulk operation flag to prevent listener conflicts
     this.isBulkOperation = true;
-    
+
     const results = [];
-    
+
     try {
       for (const deviceId of deviceIds) {
         const result = await this.removeDevice(deviceId);
         results.push({ deviceId, success: result });
       }
-      
+
       // Wait a moment for Firebase to process all removals
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Update local state manually
       this.devices = this.devices.filter(device => !deviceIds.includes(device.id));
       this.notifyListeners();
-      
+
       const success = results.every(r => r.success);
       console.log(`Bulk removal completed. Success: ${success}`);
-      
+
       return { success, results };
-      
+
     } finally {
       // Re-enable Firebase listener
       this.isBulkOperation = false;
@@ -324,14 +441,14 @@ class DeviceService {
   async removeAllDevices(): Promise<{ success: boolean; message: string; count: number }> {
     try {
       console.log('NUCLEAR OPTION: Removing ALL devices');
-      
+
       // Set bulk operation flag
       this.isBulkOperation = true;
-      
+
       // Get all current devices
       const currentDevices = [...this.devices];
       const deviceIds = currentDevices.map(d => d.id);
-      
+
       if (deviceIds.length === 0) {
         return {
           success: true,
@@ -339,27 +456,27 @@ class DeviceService {
           count: 0
         };
       }
-      
+
       console.log(`Removing ${deviceIds.length} devices:`, deviceIds);
-      
+
       // Remove all devices from Firebase
       await remove(ref(db, 'devices'));
-      
+
       // Wait for Firebase to process
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // Clear local state
       this.devices = [];
       this.notifyListeners();
-      
+
       console.log(`Successfully removed all ${deviceIds.length} devices`);
-      
+
       return {
         success: true,
         message: `Successfully removed all ${deviceIds.length} devices`,
         count: deviceIds.length
       };
-      
+
     } catch (error) {
       console.error('Failed to remove all devices:', error);
       return {
@@ -447,7 +564,7 @@ class DeviceService {
         return { success: true, updatedCount: 0 };
       }
 
-      const updatePromises = devicesInRoom.map(device => 
+      const updatePromises = devicesInRoom.map(device =>
         this.updateDeviceRoom(device.id, newRoomName)
       );
 
@@ -479,10 +596,10 @@ class DeviceService {
     try {
       const now = Date.now();
       const timestamp = `${new Date().toISOString().split('T')[0]}_${String(Math.floor(now / 60000) % 1440).padStart(4, '0')}`;
-      
+
       const powerLogRef = ref(db, `devices/${deviceId}/power_logs/${timestamp}`);
       await set(powerLogRef, power);
-      
+
       console.log(`Power logged for device ${deviceId}: ${power}W at ${timestamp}`);
       return true;
     } catch (error) {
@@ -496,7 +613,7 @@ class DeviceService {
     try {
       const powerLogsRef = ref(db, `devices/${deviceId}/power_logs`);
       const snapshot = await get(powerLogsRef);
-      
+
       if (snapshot.exists()) {
         return snapshot.val() || {};
       }
@@ -512,11 +629,11 @@ class DeviceService {
     try {
       const toggleRef = ref(db, `devices/${deviceId}/toggle`);
       const snapshot = await get(toggleRef);
-      
+
       if (snapshot.exists()) {
         const toggleData = snapshot.val();
         const history = toggleData?.history || {};
-        
+
         // Convert history object to array and sort by timestamp
         return Object.keys(history)
           .map(key => ({
@@ -537,7 +654,7 @@ class DeviceService {
     try {
       const deviceRef = ref(db, `devices/${deviceId}`);
       const snapshot = await get(deviceRef);
-      
+
       if (!snapshot.exists()) {
         console.error(`Device ${deviceId} does not exist`);
         return false;
@@ -563,11 +680,11 @@ class DeviceService {
           lastToggle: device.lastUpdated || now,
           toggleCount: 0
         });
-        
+
         // Initialize toggle history sub-node
         const toggleHistoryRef = ref(db, `devices/${deviceId}/toggle/history`);
         await set(toggleHistoryRef, {});
-        
+
         console.log(`Initialized toggle for device ${deviceId}`);
         initialized = true;
       } else if (!device.toggle.history) {
@@ -581,7 +698,7 @@ class DeviceService {
       if (initialized) {
         console.log(`Successfully initialized sub-nodes for device ${deviceId}`);
       }
-      
+
       return true;
     } catch (error) {
       console.error(`Error initializing sub-nodes for device ${deviceId}:`, error);

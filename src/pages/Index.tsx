@@ -25,7 +25,7 @@ const Dashboard = () => {
   const { trackPageAccess } = useUserData();
   const { devices, loading: devicesLoading } = useDevices();
   const [activeRange, setActiveRange] = useState('1h');
-  const [devicePowerLogs, setDevicePowerLogs] = useState<Record<string, Record<string, number>>>({});
+  /* const [devicePowerLogs, setDevicePowerLogs] = useState<Record<string, Record<string, number>>>({}); */
   const { toast } = useToast();
 
   // Debug logging
@@ -47,37 +47,6 @@ const Dashboard = () => {
     trackPageAccess('Dashboard');
   }, [trackPageAccess]);
 
-  // Fetch power logs for all devices in real-time
-  useEffect(() => {
-    const listeners: Array<() => void> = [];
-    
-    devices.forEach(device => {
-      const powerLogsRef = ref(db, `devices/${device.id}/power_logs`);
-      const unsubscribe = onValue(powerLogsRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const logs = snapshot.val() || {};
-          setDevicePowerLogs(prev => ({
-            ...prev,
-            [device.id]: logs
-          }));
-        } else {
-          setDevicePowerLogs(prev => {
-            const updated = { ...prev };
-            delete updated[device.id];
-            return updated;
-          });
-        }
-      }, (error) => {
-        console.error(`Error fetching power logs for device ${device.id}:`, error);
-      });
-      listeners.push(() => off(powerLogsRef, 'value', unsubscribe));
-    });
-
-    return () => {
-      listeners.forEach(unsubscribe => unsubscribe());
-    };
-  }, [devices]);
-
   // Use recent energy data for charts (last 24 hours) and full data for totals
   const energyData = data?.recentEnergyData || data?.energyData || [];
   const fullEnergyData = data?.energyData || [];
@@ -91,23 +60,12 @@ const Dashboard = () => {
   const energyUsage = stats.energyUsage || { value: '0.00 kW', change: 0 };
   const automationStatus = stats.automationStatus || { value: 'Auto', change: 0 };
 
-  // Helper to format total usage with multipliers and kWh unit (same as Analytics)
-  const totalKWhWithMultiplier = (arr: any[], key: string, multiplier: number = 1) => {
-    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60/1000) : 0;
-    return `${(baseValue * multiplier).toFixed(3)} kWh`;
-  };
-
-  // Helper to get numeric value for calculations
-  const getTotalKWhNumeric = (arr: any[], key: string, multiplier: number = 1) => {
-    const baseValue = arr ? (arr.reduce((sum, row) => sum + (typeof row[key] === 'number' ? row[key] : 0), 0) / 60 / 1000) : 0;
-    return baseValue * multiplier;
-  };
-  
   // Calculate device power consumption from power_logs
-  const calculateDevicePower = (deviceId: string) => {
-    const logs = devicePowerLogs[deviceId] || {};
+  // Now using the enriched power_logs from deviceService
+  const calculateDevicePower = (device: any) => {
+    const logs = device.power_logs || {};
     const logEntries = Object.entries(logs);
-    
+
     if (logEntries.length === 0) {
       return { latest: 0, total: 0 };
     }
@@ -130,14 +88,14 @@ const Dashboard = () => {
     return allRooms.map(room => {
       const stats = deviceService.getRoomStats(room);
       const roomDevices = deviceService.getDevicesByRoom(room);
-      
+
       // Calculate total power consumption for this room
       let totalRoomPower = 0;
       let latestRoomPower = 0;
       roomDevices.forEach(device => {
         const powerData = calculateDevicePower(device.id);
         totalRoomPower += powerData.total;
-        latestRoomPower += powerData.latest/1000;
+        latestRoomPower += powerData.latest / 1000;
       });
 
       return {
@@ -148,7 +106,7 @@ const Dashboard = () => {
         latestPower: latestRoomPower // in kW
       };
     });
-  }, [allRooms, devices, devicePowerLogs]);
+  }, [allRooms]);
 
   // Calculate total statistics across all rooms
   const totalStats = useMemo(() => {
@@ -170,12 +128,12 @@ const Dashboard = () => {
   // Calculate peak usage from room power data
   const peakPower = useMemo(() => {
     if (roomStats.length === 0) return 0;
-    return Math.max(...roomStats.map(room => room.latestPower)) ;
+    return Math.max(...roomStats.map(room => room.latestPower));
   }, [roomStats]);
-  
-  const efficiency = { 
-    value: `${peakPower.toFixed(3)} kW`, 
-    change: 0 
+
+  const efficiency = {
+    value: `${peakPower.toFixed(3)} kW`,
+    change: 0
   };
 
   console.log('Dashboard data received:', {
@@ -260,9 +218,9 @@ const Dashboard = () => {
             <span className="text-xs text-muted-foreground">
               {data ? `Data loaded: ${energyData.length} energy points, ${devices.length} devices` : 'No data available'}
             </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => window.location.reload()}
               className="ml-2"
             >
@@ -270,35 +228,35 @@ const Dashboard = () => {
             </Button>
           </div>
         </div>
-        
+
         {/* Stats Cards - Room-based */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard 
+          <StatCard
             title="Total Power Usage"
             value={`${totalStats.totalPower.toFixed(3)} kWh`}
             change={0}
             icon={<Bolt className="h-6 w-6" />}
           />
-          <StatCard 
+          <StatCard
             title="Peak Usage"
             value={efficiency.value}
             change={0}
             icon={<TrendingUp className="h-6 w-6" />}
           />
-          <StatCard 
+          <StatCard
             title="Active Devices"
             value={totalStats.activeDevices.toString()}
             change={0}
             icon={<Zap className="h-6 w-6" />}
           />
-          <StatCard 
+          <StatCard
             title="Total Rooms"
             value={allRooms.length.toString()}
             change={0}
             icon={<Home className="h-6 w-6" />}
           />
         </div>
-        
+
         {/* Charts - Room-based */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
@@ -351,8 +309,8 @@ const Dashboard = () => {
                     <Home className="w-5 h-5" />
                     <CardTitle>Rooms Overview</CardTitle>
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => window.location.href = '/automation'}
                   >
                     Manage Rooms
@@ -363,7 +321,7 @@ const Dashboard = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {roomStats.map(room => (
-                    <div 
+                    <div
                       key={room.name}
                       className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                       onClick={() => {
@@ -380,7 +338,7 @@ const Dashboard = () => {
                         </div>
                         <Home className="w-5 h-5 text-muted-foreground" />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Online</span>
@@ -403,9 +361,9 @@ const Dashboard = () => {
                         <div className="mt-3 pt-3 border-t">
                           <div className="flex flex-wrap gap-1">
                             {room.devices.slice(0, 3).map(device => (
-                              <Badge 
-                                key={device.id} 
-                                variant="outline" 
+                              <Badge
+                                key={device.id}
+                                variant="outline"
                                 className="text-xs"
                               >
                                 {device.type}
@@ -419,12 +377,12 @@ const Dashboard = () => {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Quick action button */}
                       <div className="mt-3 pt-3 border-t">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="w-full"
                           onClick={(e) => {
                             e.stopPropagation();
