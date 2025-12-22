@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Sun, CloudSun, TrendingUp, Calendar } from 'lucide-react';
+import { Sun, CloudSun, TrendingUp, Calendar, DollarSign } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
 import { db } from '@/services/firebase';
 import { ref, onValue, off } from 'firebase/database';
@@ -17,10 +17,13 @@ interface SolarDataPoint {
 const SolarPrediction = () => {
     const [data, setData] = useState<SolarDataPoint[]>([]);
     const [loading, setLoading] = useState(true);
+    const [nextMonthPredicted, setNextMonthPredicted] = useState(0);
 
     useEffect(() => {
         const solarRef = ref(db, 'solar_radiation');
+        const nextMonthRef = ref(db, 'next_month_forecast');
 
+        // Handler for Solar Data
         const handleData = (snapshot: any) => {
             if (!snapshot.exists()) {
                 setData([]);
@@ -74,10 +77,19 @@ const SolarPrediction = () => {
             setLoading(false);
         };
 
+        const handleNextMonth = (snapshot: any) => {
+            const val = snapshot.val();
+            if (val) {
+                setNextMonthPredicted(Number(val?.value || val) || 0);
+            }
+        };
+
         const unsubscribe = onValue(solarRef, handleData);
+        const unsubscribeNext = onValue(nextMonthRef, handleNextMonth);
 
         return () => {
             off(solarRef, 'value', handleData);
+            off(nextMonthRef, 'value', handleNextMonth);
         };
     }, []);
 
@@ -134,7 +146,7 @@ const SolarPrediction = () => {
                 </div>
 
                 {/* Key Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Current Irradiance</CardTitle>
@@ -175,6 +187,8 @@ const SolarPrediction = () => {
                             </p>
                         </CardContent>
                     </Card>
+
+
                 </div>
 
                 {/* Chart */}

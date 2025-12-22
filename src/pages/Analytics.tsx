@@ -179,28 +179,72 @@ const Analytics = () => {
     { key: 'state', header: 'State', sortable: true, render: (val: boolean) => val ? 'ON' : 'OFF' },
   ];
 
+  const isCurrentMonthFromKey = (ts: string) => {
+    // ts format: YYYY-MM-DD_HH-MM
+    if (!ts || ts.length < 7) return false;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+
+    // Extract YYYY-MM
+    const yearMonth = ts.substring(0, 7); // "2025-11"
+
+    return yearMonth === `${currentYear}-${currentMonth}`;
+  };
+
+  const getActiveMonthFromLogs = (logs: Record<string, number>) => {
+    const keys = Object.keys(logs);
+    if (keys.length === 0) return null;
+
+    // Example key: 2025-11-11_05-45 → take YYYY-MM
+    return keys[0].substring(0, 7); // "2025-11"
+  };
+
+
+
   // Calculate device power consumption from power_logs
   const calculateDevicePower = (deviceId: string) => {
     const device = devices.find(d => d.id === deviceId);
     const logs = device?.power_log || {};
-    const logEntries = Object.entries(logs);
+    const entries = Object.entries(logs);
 
-    if (logEntries.length === 0) {
+    if (entries.length === 0) {
       return { latest: 0, total: 0 };
     }
 
-    // Get latest power value (most recent timestamp)
-    const sortedEntries = logEntries.sort(([a], [b]) => b.localeCompare(a));
-    const latestPower = sortedEntries[0] ? Number(sortedEntries[0][1]) || 0 : 0;
+    // Latest power (always correct)
+    const [latestTs, latestVal] = entries.sort(
+      ([a], [b]) => b.localeCompare(a)
+    )[0];
 
-    // Calculate total power consumption (sum of all logs, assuming each log is power in watts)
-    // Convert to kWh: sum(watts) / 1000 * (number of minutes / 60)
-    const totalWatts = logEntries.reduce((sum, [, power]) => sum + (Number(power) || 0), 0);
-    // Assuming each log entry represents 1 minute of consumption
-    const totalKWh = (totalWatts / 60000);
+    const latestPower = Number(latestVal) || 0;
+
+    // 🔥 Determine month FROM DATA, not system clock
+    const activeMonth = getActiveMonthFromLogs(logs); // e.g. "2025-11"
+
+    if (!activeMonth) {
+      return { latest: latestPower, total: 0 };
+    }
+
+    // ✅ Sum only entries belonging to that month
+    const totalWatts = entries.reduce((sum, [ts, val]) => {
+      if (ts.startsWith(activeMonth)) {
+        return sum + (Number(val) || 0);
+      }
+      return sum;
+    }, 0);
+
+    // Each entry = 1 minute
+    const totalKWh = totalWatts / 1000 / 60;
 
     return { latest: latestPower, total: totalKWh };
   };
+
+
+
+
+
 
   // Aggregate minute-by-minute power data from devices in selected room
   const minuteByMinuteData = useMemo(() => {
