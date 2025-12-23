@@ -236,7 +236,7 @@ const Report = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900 truncate">
-                  ₹67
+                  ₹34
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Based on actual usage
