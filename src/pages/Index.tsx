@@ -17,6 +17,7 @@ import { useRealtimeDashboardData } from '@/services/mergedMockDataWithRealtime'
 import { useUserData } from '@/hooks/useUserData';
 import { ref, onValue, off } from 'firebase/database';
 import { db } from '@/services/firebase';
+import { calculateMonthlyDevicePower } from '@/utils/powerUtils';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 

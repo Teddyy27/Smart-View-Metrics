@@ -26,46 +26,34 @@ const Report = () => {
   const ENERGY_RATE = 8.5; // Rupees per kWh
 
   useEffect(() => {
-    // Specific endpoints for Predictions/Forecasts
-    const currentBillRef = ref(db, 'current_month_bill');
-    const currentEnergyRef = ref(db, 'current_month_energy');
-    const nextBillRef = ref(db, 'next_month_bill');
-    const nextEnergyRef = ref(db, 'next_month_energy');
+    const currentMonthRef = ref(db, 'current_month_bill');
+    const nextMonthRef = ref(db, 'next_month_forecast');
 
-    const handleCurrentBill = (snap: any) => {
+    const handleCurrentMonth = (snap: any) => {
       const val = snap.val();
-      setPredictedBill(Number(val?.value || val) || 0);
+      if (!val) return;
+
+      setPredictedBill(Number(val.predicted_bill) || 0);
+      setPredictedEnergy(Number(val.predicted_energy_kwh) || 0);
     };
 
-    const handleCurrentEnergy = (snap: any) => {
+    const handleNextMonth = (snap: any) => {
       const val = snap.val();
-      setPredictedEnergy(Number(val?.value || val) || 0);
+      if (!val) return;
+
+      setNextMonthBill(Number(val.predicted_bill) || 0);
+      setNextMonthEnergy(Number(val.predicted_energy_kwh) || 0);
     };
 
-    const handleNextBill = (snap: any) => {
-      const val = snap.val();
-      setNextMonthBill(Number(val?.value || val) || 0);
-    };
-
-    const handleNextEnergy = (snap: any) => {
-      const val = snap.val();
-      setNextMonthEnergy(Number(val?.value || val) || 0);
-    };
-
-    const unsubCurrentBill = onValue(currentBillRef, handleCurrentBill);
-    const unsubCurrentEnergy = onValue(currentEnergyRef, handleCurrentEnergy);
-    const unsubNextBill = onValue(nextBillRef, handleNextBill);
-    const unsubNextEnergy = onValue(nextEnergyRef, handleNextEnergy);
-
-    setLoadingFirebase(false);
+    onValue(currentMonthRef, handleCurrentMonth);
+    onValue(nextMonthRef, handleNextMonth);
 
     return () => {
-      off(currentBillRef, 'value', handleCurrentBill);
-      off(currentEnergyRef, 'value', handleCurrentEnergy);
-      off(nextBillRef, 'value', handleNextBill);
-      off(nextEnergyRef, 'value', handleNextEnergy);
+      off(currentMonthRef, 'value', handleCurrentMonth);
+      off(nextMonthRef, 'value', handleNextMonth);
     };
   }, []);
+
 
   // Calculate ACTUAL Current Bill So Far from device logs
   const currentBillActual = useMemo(() => {
@@ -151,7 +139,7 @@ const Report = () => {
     window.print();
   };
 
-  if (authLoading || loadingFirebase) {
+  if (authLoading) {
     return (
       <Layout>
         <div className="h-full flex items-center justify-center">
@@ -192,7 +180,7 @@ const Report = () => {
 
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card className="border-l-4 border-l-blue-500 shadow-md">
+            {/* <Card className="border-l-4 border-l-blue-500 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">Current Bill (So Far)</CardTitle>
                 <DollarSign className="h-4 w-4 text-blue-500" />
@@ -203,7 +191,7 @@ const Report = () => {
                   Actual usage for {monthName}
                 </p>
               </CardContent>
-            </Card>
+            </Card> */}
 
             <Card className="border-l-4 border-l-orange-500 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
