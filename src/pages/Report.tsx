@@ -236,7 +236,7 @@ const Report = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-gray-900 truncate">
-                  ₹{(currentBillActual / (new Date().getDate() || 1)).toFixed(0)}
+                  ₹{(currentBillActual / 1.7910 * (new Date().getDate() || 1)).toFixed(0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Based on actual usage
