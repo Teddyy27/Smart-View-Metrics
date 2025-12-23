@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { ref, set, remove, update, onValue, off, get } from 'firebase/database';
+import { ref, set, remove, update, onValue, off, get, query, limitToLast } from 'firebase/database';
 
 export interface Device {
   id: string;
@@ -48,7 +48,11 @@ class DeviceService {
     };
 
     Object.entries(paths).forEach(([key, path]) => {
-      onValue(ref(db, path), (snapshot) => {
+      // Optimize: Limit legacy data to last 10000 entries to prevent overload
+      // This should cover reasonable recent history for calculations without fetching entire years of data
+      const legacyQuery = query(ref(db, path), limitToLast(10000));
+
+      onValue(legacyQuery, (snapshot) => {
         const val = snapshot.val() || {};
         console.log(`Legacy data received for ${key}: ${Object.keys(val).length} entries`);
         this.legacyData[key] = val;

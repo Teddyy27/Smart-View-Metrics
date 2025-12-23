@@ -22,8 +22,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-// const analytics = getAnalytics(app); // Commented out for localhost
+// const analytics = getAnalytics(app);
 const auth = getAuth(app);
 export const db = getDatabase(app);
 

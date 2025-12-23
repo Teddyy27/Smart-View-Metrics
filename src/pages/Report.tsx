@@ -17,35 +17,53 @@ const Report = () => {
   const { devices } = useDevices();
 
   const [predictedBill, setPredictedBill] = useState<number>(0);
-  const [nextMonthForecast, setNextMonthForecast] = useState<number>(0);
+  const [predictedEnergy, setPredictedEnergy] = useState<number>(0);
+  const [nextMonthBill, setNextMonthBill] = useState<number>(0);
+  const [nextMonthEnergy, setNextMonthEnergy] = useState<number>(0);
   const [loadingFirebase, setLoadingFirebase] = useState(true);
 
   // Constants
   const ENERGY_RATE = 8.5; // Rupees per kWh
 
   useEffect(() => {
-    // These specific endpoints are Predictions/Forecasts
+    // Specific endpoints for Predictions/Forecasts
     const currentBillRef = ref(db, 'current_month_bill');
-    const nextForecastRef = ref(db, 'next_month_forecast');
+    const currentEnergyRef = ref(db, 'current_month_energy');
+    const nextBillRef = ref(db, 'next_month_bill');
+    const nextEnergyRef = ref(db, 'next_month_energy');
 
-    const handleCurrent = (snap: any) => {
+    const handleCurrentBill = (snap: any) => {
       const val = snap.val();
       setPredictedBill(Number(val?.value || val) || 0);
     };
 
-    const handleNext = (snap: any) => {
+    const handleCurrentEnergy = (snap: any) => {
       const val = snap.val();
-      setNextMonthForecast(Number(val?.value || val) || 0);
+      setPredictedEnergy(Number(val?.value || val) || 0);
     };
 
-    const unsubCurrent = onValue(currentBillRef, handleCurrent);
-    const unsubNext = onValue(nextForecastRef, handleNext);
+    const handleNextBill = (snap: any) => {
+      const val = snap.val();
+      setNextMonthBill(Number(val?.value || val) || 0);
+    };
+
+    const handleNextEnergy = (snap: any) => {
+      const val = snap.val();
+      setNextMonthEnergy(Number(val?.value || val) || 0);
+    };
+
+    const unsubCurrentBill = onValue(currentBillRef, handleCurrentBill);
+    const unsubCurrentEnergy = onValue(currentEnergyRef, handleCurrentEnergy);
+    const unsubNextBill = onValue(nextBillRef, handleNextBill);
+    const unsubNextEnergy = onValue(nextEnergyRef, handleNextEnergy);
 
     setLoadingFirebase(false);
 
     return () => {
-      off(currentBillRef, 'value', handleCurrent);
-      off(nextForecastRef, 'value', handleNext);
+      off(currentBillRef, 'value', handleCurrentBill);
+      off(currentEnergyRef, 'value', handleCurrentEnergy);
+      off(nextBillRef, 'value', handleNextBill);
+      off(nextEnergyRef, 'value', handleNextEnergy);
     };
   }, []);
 
@@ -189,17 +207,17 @@ const Report = () => {
 
             <Card className="border-l-4 border-l-orange-500 shadow-md">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Current Month Bill</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Current Month Forecast</CardTitle>
                 <TrendingUp className="h-4 w-4 text-orange-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold text-gray-900">₹{predictedBill.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-xs font-normal">
-                    {(predictedBill / ENERGY_RATE).toFixed(0)} kWh
+                    {predictedEnergy.toFixed(0)} kWh
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Forecast
+                    Predicted Energy
                   </span>
                 </div>
               </CardContent>
@@ -211,13 +229,13 @@ const Report = () => {
                 <TrendingUp className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-gray-900">₹{nextMonthForecast.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="text-3xl font-bold text-gray-900">₹{nextMonthBill.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-xs font-normal">
-                    {(nextMonthForecast / ENERGY_RATE).toFixed(0)} kWh
+                    {nextMonthEnergy.toFixed(0)} kWh
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Projected
+                    Predicted Energy
                   </span>
                 </div>
               </CardContent>

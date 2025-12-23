@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sun, CloudSun, TrendingUp, Calendar, DollarSign } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
 import { db } from '@/services/firebase';
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue, off, query, limitToLast } from 'firebase/database';
 
 interface SolarDataPoint {
     timestamp: Date;
@@ -21,6 +21,8 @@ const SolarPrediction = () => {
 
     useEffect(() => {
         const solarRef = ref(db, 'solar_radiation');
+        // Limit to last 2000 data points to prevent huge payload
+        const solarQuery = query(solarRef, limitToLast(2000));
         const nextMonthRef = ref(db, 'next_month_forecast');
 
         // Handler for Solar Data
@@ -84,11 +86,11 @@ const SolarPrediction = () => {
             }
         };
 
-        const unsubscribe = onValue(solarRef, handleData);
+        const unsubscribe = onValue(solarQuery, handleData);
         const unsubscribeNext = onValue(nextMonthRef, handleNextMonth);
 
         return () => {
-            off(solarRef, 'value', handleData);
+            off(solarQuery, 'value', handleData);
             off(nextMonthRef, 'value', handleNextMonth);
         };
     }, []);
